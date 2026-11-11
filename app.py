@@ -587,6 +587,89 @@ I18N = {
         "rec_Overheated": "Piyasa aşırı ısınmış — DCA'yı artırma",
         "recsub_Overheated": "Aşırı açgözlülük ve gergin değerleme (~%5 zaman).",
     },
+    "ES": {
+        "tagline": "Acumula BTC de forma inteligente. Con números.",
+        "subdesc": "Una única puntuación de 0 a 100 a partir de 8 indicadores de mercado: 0 significa sobrecalentado, 100 significa un momento fuerte para acumular.",
+        "score_label": "PUNTUACIÓN",
+        "btc_price_label": "PRECIO BTC",
+        "overheated": "SOBRECALENTADO",
+        "neutral": "NEUTRAL",
+        "strong_buy": "COMPRA FUERTE",
+        "usual_contrib": "TU APORTACIÓN HABITUAL",
+        "suggested_dca": "DCA SUGERIDO",
+        "to_put_in": "PARA PONER HOY",
+        "sats_at_live": "sats al precio actual",
+        "regime_lbl": "Régimen",
+        "calc_how": "CÓMO SE CALCULA",
+        "calc_why": "POR QUÉ ES IMPORTANTE PARA ACUMULAR BTC",
+        "weight_lbl": "Peso",
+        "trajectory_lbl": "TRAYECTORIA DE 30 DÍAS",
+        "fav_accum": "Favorable para Acumular",
+        "neut_regime": "Régimen Neutral",
+        "caut_headwind": "Precaución / Viento en Contra",
+        "indicators_title": "8 INDICADORES DE MERCADO",
+        "indicators_sub": "Pasa el ratón o haz clic en cualquier tarjeta de indicador para desplegar su tendencia de 30 días y metodología",
+        "why_title": "¿POR QUÉ LA PUNTUACIÓN DE HOY? (FACTORES CLAVE)",
+        "why_mvrv_lbl": "Valoración On-Chain (MVRV)",
+        "why_mvrv_txt": "valor realizado — muy por debajo del umbral de tope de ciclo de 3.5x, indicando territorio de acumulación saludable.",
+        "why_m2_lbl": "Liquidez Global (M2 EE.UU.)",
+        "why_m2_txt": "interanual — la expansión de la oferta monetaria actúa como viento a favor estructural para BTC.",
+        "why_dxy_lbl": "Índice del Dólar Macro (DXY)",
+        "why_dxy_risen": "subido",
+        "why_dxy_fallen": "bajado",
+        "why_dxy_headwind": "viento en contra para BTC",
+        "why_dxy_tailwind": "viento a favor para BTC",
+        "why_sent_lbl": "Sentimiento Minorista e Interés de Búsqueda",
+        "why_sent_txt": "El interés de búsqueda en Google se sitúa en el",
+        "why_sent_sub": "percentil — acumulación silenciosa sin euforia minorista.",
+        "chart_title": "PUNTUACIÓN VS. PRECIO DE BITCOIN",
+        "chart_sub": "Línea dorada = Puntuación de Acumulación (0–100) • Línea naranja = Precio de BTC (USD)",
+        "log_scale_lbl": "Escala Logarítmica de BTC",
+        "ema_toggle_lbl": "Mostrar EMA de 200 días",
+        "backtest_title": "VALIDACIÓN HISTÓRICA Y SIMULADOR DE SMART DCA",
+        "backtest_sub": "Compara Smart DCA Ajustado por Puntuación contra DCA Plano Estándar sobre cualquier ventana histórica",
+        "bt_start_lbl": "Fecha de Inicio",
+        "bt_end_lbl": "Fecha de Fin",
+        "bt_daily_lbl": "Monto de DCA Diario Base ($)",
+        "bt_flat_title": "DCA PLANO ESTÁNDAR",
+        "bt_smart_title": "SMART DCA AJUSTADO POR PUNTUACIÓN",
+        "bt_alpha_title": "VENTAJA DEL SMART DCA (ALFA)",
+        "bt_total_invested": "Total Invertido",
+        "bt_curr_val": "Valor Actual",
+        "bt_avg_price": "Precio de Compra Promedio",
+        "bt_cheaper_entry": "Entrada Promedio Más Barata",
+        "bt_outperformance": "Rendimiento Superior del ROI",
+        "bt_period": "Período Probado",
+        "days_lbl": "días",
+        "zone_title": "TIEMPO PASADO EN CADA ZONA (CALIBRACIÓN 2018–2026)",
+        "zone_sub": "La mayor parte del tiempo: neutral. Los extremos son raros por diseño.",
+        "cycle_title": "FONDOS Y TOPES DE CICLO DEL MUNDO REAL",
+        "cycle_ftx_sub": "Días del fondo real del ciclo de FTX (~$15,500).",
+        "cycle_bear_sub": "En lo profundo de la capitulación del mercado bajista de 2018.",
+        "cycle_ath_sub": "Semanas antes del máximo histórico del ciclo de 2021 (~$69,000).",
+        "cycle_rally_sub": "Repunte parabólico posterior a las elecciones (+50% por encima de la tendencia EMA200 mientras el DXY subía).",
+        "faq_title": "PREGUNTAS FRECUENTES",
+        "faq_span": "(FAQ)",
+        "news_title": "NOTICIAS",
+        "news_span": "DE BITCOIN",
+        "news_sub": "Últimos 5 titulares en vivo provenientes directamente de BitcoinMagazine.com",
+        "news_read": "Leer en Bitcoin Magazine →",
+        "fng_extreme_fear": "Miedo Extremo",
+        "fng_fear": "Miedo",
+        "fng_neutral": "Neutral",
+        "fng_greed": "Codicia",
+        "fng_extreme_greed": "Codicia Extrema",
+        "rec_Strong Buy": "Aumenta el DCA Diario en un +50%",
+        "recsub_Strong Buy": "Miedo extremo y valor de ciclo profundo. Históricamente raro (~5% de los días).",
+        "rec_Buy More": "Aumenta el DCA Diario en un +25%",
+        "recsub_Buy More": "El mercado muestra señales de subvaluación.",
+        "rec_Neutral": "Mantén el DCA Diario Normal",
+        "recsub_Neutral": "El mercado está en equilibrio de valor justo (~50% de los días).",
+        "rec_Caution": "Ten Precaución — Mantén el DCA Base",
+        "recsub_Caution": "El impulso y las valoraciones se están calentando (~20% de los días).",
+        "rec_Overheated": "Mercado Sobrecalentado — Pausa el Aumento",
+        "recsub_Overheated": "Codicia extrema y valoración estirada (~5% de los días).",
+    }
 }
 
 SIGNALS_EXPLAINER = {
@@ -688,6 +771,56 @@ SIGNALS_EXPLAINER = {
             "title": "BTC Dominansı",
             "how": "Bitcoin'in toplam kripto piyasa değeri içindeki yüzde payı (CoinGecko).",
             "why": "Dominansın yükselmesi, spekülatif altcoinlerden çıkıp ana değer saklama varlığı Bitcoin'e kaçışı gösterir. En çok tartışılan metrik olduğu için ağırlığı düşük (%4) tutulmuştur.",
+        },
+    ],
+    "ES": [
+        {
+            "key": "mvrv",
+            "title": "MVRV",
+            "how": "Valor de Mercado dividido por Valor Realizado — compara el precio actual de BTC con el precio promedio al que se movió cada moneda por última vez on-chain.",
+            "why": "Cerca o por debajo de 1, el tenedor promedio está bajo el agua — históricamente una fuerte señal de fondos de ciclo. Por encima de 3.5+ ha marcado topes de ciclo anteriores.",
+        },
+        {
+            "key": "google_trends",
+            "title": "Google Trends",
+            "how": "Interés de búsqueda mundial para \"Bitcoin\", normalizado de 0 a 100 por el propio Google.",
+            "why": "El bajo interés a menudo significa que el público aún no está prestando atención. Los picos extremos de búsqueda han coincidido históricamente con topes eufóricos.",
+        },
+        {
+            "key": "dxy",
+            "title": "DXY",
+            "how": "Un índice oficial que rastrea el valor del dólar estadounidense frente a una canasta de las principales monedas (EUR, JPY, GBP...). Obtenido directamente del mercado.",
+            "why": "BTC se ha movido históricamente de manera inversa al dólar. Un dólar debilitado ha coincidido a menudo con activos de riesgo como BTC ganando terreno.",
+        },
+        {
+            "key": "m2_yoy",
+            "title": "Liquidez (M2)",
+            "how": "Crecimiento interanual de la oferta monetaria M2 de EE.UU. — efectivo, depósitos a la vista y de ahorro. Obtenido directamente de la Reserva Federal (FRED).",
+            "why": "Más dinero en el sistema tiende a fluir hacia activos de riesgo con el tiempo. La expansión de la liquidez ha sido históricamente un viento a favor para BTC.",
+        },
+        {
+            "key": "fng",
+            "title": "Miedo y Codicia",
+            "how": "Un índice diario de 0 a 100 que combina volatilidad del mercado, impulso, volumen de operaciones y sentimiento social. Publicado por alternative.me.",
+            "why": "El miedo extremo se ha alineado históricamente con fondos locales — momentos en que comprar se sentía terrible en el momento y genial un año después.",
+        },
+        {
+            "key": "ema200_ratio",
+            "title": "EMA200 (diario)",
+            "how": "El precio de cierre promedio de los últimos 200 días, ponderado de modo que los días recientes cuentan más. Medimos cuán por encima o por debajo de él se sitúa el precio de hoy.",
+            "why": "Una de las líneas de tendencia más vigiladas en todas las finanzas. Caídas profundas por debajo de ella han marcado históricamente fuertes zonas de acumulación para BTC.",
+        },
+        {
+            "key": "rsi14",
+            "title": "RSI14",
+            "how": "Índice de Fuerza Relativa en los últimos 14 días — mide la velocidad y el tamaño de los movimientos de precios recientes en una escala de 0 a 100, utilizando el suavizado original de Wilder.",
+            "why": "Por debajo de 30 es el clásico territorio de \"sobreventa\" (fuertes ventas, a menudo exageradas). Por encima de 70 es \"sobrecompra\" (repuntes que se calientan).",
+        },
+        {
+            "key": "btc_dominance",
+            "title": "Dominancia BTC",
+            "how": "Participación de Bitcoin en la capitalización total del mercado de criptomonedas, obtenida de CoinGecko.",
+            "why": "El aumento de la dominancia a menudo señala que el capital se está consolidando en BTC sobre altcoins especulativas. Ponderado ligeramente (4%) como la señal más debatida.",
         },
     ],
 }
@@ -1686,12 +1819,12 @@ def build_dual_axis_chart(
 # MAIN APPLICATION
 # ---------------------------------------------------------------------------
 def main() -> None:
-    # Top Utility Bar with Language Selector (EN | TR) & Data Refresh
+    # Top Utility Bar with Language Selector (EN | TR | ES) & Data Refresh
     col_brand, col_lang = st.columns([3.2, 1.0])
     with col_lang:
         lang = st.segmented_control(
             "Language",
-            options=["EN", "TR"],
+            options=["EN", "TR", "ES"],
             default="TR",
             label_visibility="collapsed",
         )
@@ -1815,16 +1948,136 @@ def main() -> None:
     )
 
     # -----------------------------------------------------------------------
+    # 4. HISTORICAL VALIDATION & SMART DCA BACKTESTER
+    # -----------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="sec-title-row">
+            <div class="sec-title">{L['backtest_title']}</div>
+            <div class="sec-sub">{L['backtest_sub']}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_d1, col_d2, col_amt = st.columns([1.5, 1.5, 2.0])
+    with col_d1:
+        min_date_ts = scored_df.index.min()
+        max_date_ts = scored_df.index.max()
+        # Ensure we have valid timestamps and calculate sensible defaults
+        min_date = min_date_ts.to_pydatetime().date() if not pd.isna(min_date_ts) else pd.to_datetime("2018-02-01").date()
+        max_date = max_date_ts.to_pydatetime().date() if not pd.isna(max_date_ts) else pd.to_datetime("today").date()
+        default_start = min_date
+
+        start_dt = st.date_input(
+            L['bt_start_lbl'],
+            value=default_start,
+            min_value=min_date,
+            max_value=max_date,
+        )
+    with col_d2:
+        end_dt = st.date_input(
+            L['bt_end_lbl'],
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date,
+        )
+    with col_amt:
+        base_dca = st.number_input(
+            L['bt_daily_lbl'],
+            min_value=1.0,
+            value=20.0,
+            step=5.0,
+        )
+
+    bt_results = run_dca_backtest(
+        scored_df,
+        start_date=str(start_dt),
+        end_date=str(end_dt),
+        base_daily_usd=float(base_dca)
+    )
+
+    if bt_results and bt_results["days"] > 0:
+        st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
+        bc1, bc2, bc3 = st.columns(3, gap="medium")
+
+        with bc1:
+            st.markdown(f"""
+            <div class="tbs-card" style="border-top:3.5px solid #64748b;">
+                <div style="font-size:0.80rem;font-weight:700;letter-spacing:0.1em;color:#94a3b8;margin-bottom:12px;">{L['bt_flat_title']}</div>
+                <div style="margin-bottom:8px;">
+                    <span style="font-size:0.85rem;color:#cbd5e1;">{L['bt_total_invested']}:</span>
+                    <span style="font-weight:700;">${bt_results['flat_invested']:,.0f}</span>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <span style="font-size:0.85rem;color:#cbd5e1;">{L['bt_curr_val']}:</span>
+                    <span style="font-weight:700;color:#10b981;">${bt_results['flat_val']:,.0f}</span>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <span style="font-size:0.85rem;color:#cbd5e1;">{L['bt_avg_price']}:</span>
+                    <span style="font-weight:700;">${bt_results['flat_avg_price']:,.0f}</span>
+                </div>
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid #1f2937;">
+                    <span style="font-size:0.85rem;color:#64748b;">ROI:</span>
+                    <span style="font-weight:800;font-size:1.15rem;color:#10b981;">+{bt_results['flat_roi']:.1f}%</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with bc2:
+            st.markdown(f"""
+            <div class="tbs-card" style="border-top:3.5px solid #f7931a;background:linear-gradient(160deg, #131822, #0d1118);">
+                <div style="font-size:0.80rem;font-weight:800;letter-spacing:0.1em;color:#f7931a;margin-bottom:12px;">{L['bt_smart_title']}</div>
+                <div style="margin-bottom:8px;">
+                    <span style="font-size:0.85rem;color:#cbd5e1;">{L['bt_total_invested']}:</span>
+                    <span style="font-weight:700;">${bt_results['smart_invested']:,.0f}</span>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <span style="font-size:0.85rem;color:#cbd5e1;">{L['bt_curr_val']}:</span>
+                    <span style="font-weight:700;color:#10b981;">${bt_results['smart_val']:,.0f}</span>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <span style="font-size:0.85rem;color:#cbd5e1;">{L['bt_avg_price']}:</span>
+                    <span style="font-weight:700;">${bt_results['smart_avg_price']:,.0f}</span>
+                </div>
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(247,147,26,0.2);">
+                    <span style="font-size:0.85rem;color:#f7931a;">ROI:</span>
+                    <span style="font-weight:800;font-size:1.15rem;color:#10b981;">+{bt_results['smart_roi']:.1f}%</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with bc3:
+            alpha_color = "#10b981" if bt_results['roi_alpha_pct'] >= 0 else "#ef4444"
+            st.markdown(f"""
+            <div class="tbs-card" style="border:1px dashed #10b981;background:rgba(16,185,129,0.03);">
+                <div style="font-size:0.80rem;font-weight:800;letter-spacing:0.1em;color:#10b981;margin-bottom:12px;">{L['bt_alpha_title']}</div>
+                <div style="margin-bottom:12px;">
+                    <span style="font-size:0.85rem;color:#cbd5e1;">{L['bt_cheaper_entry']}:</span><br>
+                    <span style="font-weight:800;font-size:1.2rem;color:#10b981;">-${max(0, bt_results['flat_avg_price'] - bt_results['smart_avg_price']):,.0f}</span>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <span style="font-size:0.85rem;color:#cbd5e1;">{L['bt_outperformance']}:</span><br>
+                    <span style="font-weight:800;font-size:1.2rem;color:{alpha_color};">+{bt_results['roi_alpha_pct']:.1f}%</span>
+                </div>
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(16,185,129,0.2);">
+                    <span style="font-size:0.80rem;color:#94a3b8;">{L['bt_period']}: {bt_results['days']} {L['days_lbl']}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+
+    # -----------------------------------------------------------------------
     # 5. TIME SPENT IN EACH ZONE & REAL-WORLD EXAMPLES
     # -----------------------------------------------------------------------
     st.markdown("<div style='height:22px;'></div>", unsafe_allow_html=True)
     col_z1, col_z2 = st.columns(2, gap="large")
 
-    strong_buy_lbl = "Güçlü Alım" if lang == "TR" else "Strong Buy"
-    buy_more_lbl = "Daha Fazla Al" if lang == "TR" else "Buy More"
-    neutral_lbl = "Nötr" if lang == "TR" else "Neutral"
-    caution_lbl = "Dikkat" if lang == "TR" else "Caution"
-    overheated_lbl = "Aşırı Isınmış" if lang == "TR" else "Overheated"
+    strong_buy_lbl = "Güçlü Alım" if lang == "TR" else ("Compra Fuerte" if lang == "ES" else "Strong Buy")
+    buy_more_lbl = "Daha Fazla Al" if lang == "TR" else ("Comprar Más" if lang == "ES" else "Buy More")
+    neutral_lbl = "Nötr" if lang == "TR" else ("Neutral" if lang == "ES" else "Neutral")
+    caution_lbl = "Dikkat" if lang == "TR" else ("Precaución" if lang == "ES" else "Caution")
+    overheated_lbl = "Aşırı Isınmış" if lang == "TR" else ("Sobrecalentado" if lang == "ES" else "Overheated")
 
     with col_z1:
         st.markdown(
@@ -1957,6 +2210,21 @@ def main() -> None:
             (
                 "Skor ayarlı Akıllı DCA, standart sabit DCA'dan gerçekten daha mı çok kazandırır?",
                 "Evet — piyasa aşırı korkulu ve ucuzken alım tutarını çarpanla (×1.25 ile ×1.50) artırarak, aşırı ısındığında ise alımları kısıp sakin kalarak ortalama BTC maliyetinizi sistematik biçimde düşürür. Tehlikeli 'tamamen gir / tamamen çık' zamanlama stresine girmeden üstün getiri (alfa) üretir.",
+            ),
+        ]
+    elif lang == "ES":
+        faqs = [
+            (
+                "¿Cómo funciona The Bitcoin Score?",
+                "Agrega 8 señales de mercado independientes que abarcan la valoración on-chain (MVRV), la tendencia técnica y el impulso (EMA de 200 días, RSI14 de Wilder), la liquidez macro (Crecimiento interanual M2 de EE. UU., DXY), el sentimiento (Miedo y codicia), la atención minorista (Google Trends) y la estructura del mercado (Dominancia de BTC) en una sola puntuación diaria de 0 a 100.",
+            ),
+            (
+                "¿Cómo se ponderan y calibran las 8 señales?",
+                "El MVRV (22%) y la distancia de la EMA200 (18%) tienen el mayor peso estructural, seguidos por el RSI14 (14%), Miedo y codicia (14%), DXY (10%), Liquidez M2 (10%), Google Trends (8%) y la Dominancia de BTC (ligeramente ponderada en 4%). La puntuación compuesta está calibrada por cuantiles para que la ocupación histórica coincida con ~5% Compra Fuerte, ~20% Comprar Más, ~50% Neutral, ~20% Precaución y ~5% Sobrecalentado.",
+            ),
+            (
+                "¿El Smart DCA ajustado por puntuación realmente supera al DCA regular?",
+                "Sí, al aumentar las contribuciones diarias (×1.25 a ×1.50) cuando Bitcoin está infravalorado y asustado, y reducir la escala cuando el mercado está sobrecalentado, Smart DCA reduce sistemáticamente tu precio de compra promedio de BTC sin intentar la sincronización arriesgada del mercado de todo o nada.",
             ),
         ]
     else:
