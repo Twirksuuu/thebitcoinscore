@@ -1,0 +1,1874 @@
+"""
+The Bitcoin Score — Next-Gen Contrarian BTC Accumulation Dashboard (app.py)
+Designed after https://thebitcoinscore.com/ and enhanced with:
+- Full EN / TR / ES localization toggle
+- Exact Hero Card with giant Score (e.g. 68 /100), BUY MORE pill, live BTC Price,
+  5-segment horizontal gauge with diamond needle (◆), and instant-keystroke 3-column DCA Calculator
+- 4x2 Interactive 8-Signal Grid with live 30-day SVG sparklines + hover/click animated inspector
+- Dynamic "Why Today's Score?" 4-factor synthesis panel
+- Dual-Axis Interactive Chart (Gold Score trajectory vs. BTC Price & EMA200)
+- Animated Horizontal Expanding 8-Signals Story Accordion
+- Interactive Historical DCA Backtester (Smart Score DCA vs. Flat DCA)
+- Time Spent in Each Zone, Real-World Cycle Examples & Smooth FAQ Accordion
+"""
+
+from __future__ import annotations
+
+import importlib
+import json
+import os
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import streamlit as st
+import streamlit.components.v1 as components
+
+import data_fetcher
+import scoring
+
+importlib.reload(data_fetcher)
+importlib.reload(scoring)
+
+from data_fetcher import build_master_dataset
+from scoring import (
+    SIGNAL_WEIGHTS,
+    classify_score_zone,
+    compute_accumulation_score,
+    get_zone_distribution_report,
+    run_dca_backtest,
+)
+
+# ---------------------------------------------------------------------------
+# PAGE CONFIG & GLOBAL CSS (MATCHING THEBITCOINSCORE.COM + GLASSMORPHIC POLISH)
+# ---------------------------------------------------------------------------
+st.set_page_config(
+    page_title="The Bitcoin Score | Accumulate BTC better. With numbers.",
+    page_icon="₿",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+CUSTOM_CSS = """
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700;800&display=swap');
+
+    .stApp {
+        background:
+            radial-gradient(900px 520px at 8% -6%, rgba(247,147,26,0.13), transparent 60%),
+            radial-gradient(700px 480px at 100% 30%, rgba(16,185,129,0.06), transparent 60%),
+            #0a0e14;
+        background-attachment: fixed;
+        color: #f1f5f9;
+        font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+    }
+    /* Hide Streamlit chrome */
+    header[data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer,
+    [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display:none !important; }
+
+    /* Entrance animation */
+    @keyframes riseIn { from {opacity:0; transform:translateY(14px);} to {opacity:1; transform:none;} }
+    .tbs-header, .why-box, .tbs-card, .sec-title-row { animation: riseIn .6s cubic-bezier(.22,1,.36,1) both; }
+    .why-box { animation-delay:.1s; } .tbs-card { animation-delay:.15s; }
+    .tbs-card { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
+    .tbs-card:hover { transform: translateY(-3px); border-color: rgba(247,147,26,.45); box-shadow: 0 18px 40px rgba(0,0,0,.5); }
+    .why-box { background: linear-gradient(160deg, rgba(19,24,34,.9), rgba(13,17,24,.9)); backdrop-filter: blur(8px); }
+    .why-item { transition: background .2s ease, padding-left .2s ease; border-radius: 8px; }
+    .why-item:hover { background: rgba(247,147,26,.05); padding-left: 8px; }
+
+    /* Streamlit widgets in brand style */
+    [data-testid="stExpander"] { background:#11161f; border:1px solid #1f2937 !important; border-radius:14px !important; margin-bottom:10px; }
+    [data-testid="stExpander"] summary:hover { color:#f7931a !important; }
+    [data-testid="stDateInput"] input, [data-testid="stNumberInput"] input {
+        background:#131822 !important; border-radius:10px !important; font-family:'JetBrains Mono',monospace !important; }
+    [data-baseweb="input"], [data-baseweb="base-input"] { background:#131822 !important; border-color:#263142 !important; border-radius:10px !important; }
+    [data-testid="stSegmentedControl"] button, [data-testid="stButtonGroup"] button {
+        background:#131822 !important; border:1px solid #263142 !important; color:#94a3b8 !important;
+        font-family:'JetBrains Mono',monospace !important; font-weight:700 !important; transition: all .2s ease; }
+    [data-testid="stSegmentedControl"] button[aria-checked="true"], [data-testid="stButtonGroup"] button[aria-checked="true"],
+    [data-testid="stButtonGroup"] button[kind$="Active"] {
+        background:rgba(247,147,26,.15) !important; border-color:#f7931a !important; color:#fff !important; }
+    [data-testid="stWidgetLabel"] p { color:#94a3b8 !important; font-size:.74rem !important; letter-spacing:.08em; text-transform:uppercase; font-weight:700 !important; }
+    [data-testid="stPlotlyChart"] { border:1px solid #1f2937; border-radius:16px; overflow:hidden; }
+    ::-webkit-scrollbar { width:8px; } ::-webkit-scrollbar-thumb { background:#1f2937; border-radius:8px; }
+    ::-webkit-scrollbar-thumb:hover { background:#f7931a; }
+    [data-testid="stSidebar"] {
+        background-color: #0d1117;
+        border-right: 1px solid #1f2937;
+    }
+    .block-container {
+        padding-top: 1.8rem !important;
+        padding-bottom: 3.5rem !important;
+        max-width: 1120px !important;
+    }
+
+    /* Top Header matching thebitcoinscore.com */
+    .tbs-header {
+        margin-bottom: 22px;
+    }
+    .tbs-top-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 14px;
+    }
+    .tbs-logo-group {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .tbs-logo-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+    .tbs-orange-circle {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #f7931a;
+        color: #0a0e14;
+        font-weight: 900;
+        font-size: 1.55rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 0 22px rgba(247, 147, 26, 0.35);
+    }
+    .tbs-tri-bars {
+        display: flex;
+        gap: 3px;
+    }
+    .tbs-tri-bar {
+        width: 11px;
+        height: 4px;
+        border-radius: 2px;
+    }
+    .tbs-main-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #ffffff;
+        letter-spacing: -0.6px;
+        line-height: 1.1;
+    }
+
+    .tbs-pill-bar {
+        display: inline-flex;
+        align-items: center;
+        background: #131822;
+        border: 1px solid #1f2937;
+        border-radius: 10px;
+        padding: 5px 12px;
+        gap: 8px;
+        font-size: 0.75rem;
+        color: #94a3b8;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+    }
+    .tbs-live-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #10b981;
+        font-weight: 700;
+    }
+    .tbs-live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #10b981;
+        box-shadow: 0 0 8px #10b981;
+        animation: pulseLive 2s infinite;
+    }
+    @keyframes pulseLive {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .tbs-orange-divider {
+        height: 1px;
+        background: linear-gradient(90deg, #f7931a 0%, rgba(247, 147, 26, 0.25) 55%, rgba(31, 41, 55, 0.1) 100%);
+        margin: 14px 0 16px 0;
+    }
+    .tbs-tagline {
+        font-size: 1.08rem;
+        color: #cbd5e1;
+        font-weight: 500;
+        margin-bottom: 6px;
+    }
+    .tbs-subdesc {
+        font-size: 0.94rem;
+        color: #94a3b8;
+        line-height: 1.5;
+    }
+
+    /* Why Today's Score Synthesis Box */
+    .why-box {
+        background: #11161f;
+        border: 1px solid #1f2937;
+        border-radius: 16px;
+        padding: 22px 26px;
+        margin: 20px 0;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+    .why-title {
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        color: #f7931a;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+    }
+    .why-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 0.95rem;
+        color: #e2e8f0;
+    }
+    .why-item:last-child {
+        border-bottom: none;
+    }
+    .why-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    /* Section Headers */
+    .sec-title-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin: 30px 0 14px 0;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .sec-title {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #ffffff;
+        letter-spacing: -0.3px;
+    }
+    .sec-title span {
+        color: #f7931a;
+    }
+    .sec-sub {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+
+    /* Story & Backtest Cards */
+    .tbs-card {
+        background: #11161f;
+        border: 1px solid #1f2937;
+        border-radius: 16px;
+        padding: 24px 26px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        height: 100%;
+    }
+    .zone-bar-row {
+        margin-bottom: 14px;
+    }
+    .zone-bar-top {
+        display: flex;
+        justify-content: space-between;
+        font-weight: 700;
+        font-size: 0.98rem;
+        margin-bottom: 5px;
+    }
+    .zone-pill-fill {
+        height: 12px;
+        border-radius: 999px;
+    }
+</style>
+"""
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# LOCALIZATION DICTIONARY (EN / TR)
+# ---------------------------------------------------------------------------
+I18N = {
+    "EN": {
+        "tagline": "Accumulate BTC better. With numbers.",
+        "subdesc": "A single 0–100 score from 8 market indicators: 0 means overheated, 100 means a strong moment to accumulate.",
+        "score_label": "SCORE",
+        "btc_price_label": "BTC PRICE",
+        "overheated": "OVERHEATED",
+        "neutral": "NEUTRAL",
+        "strong_buy": "STRONG BUY",
+        "usual_contrib": "YOUR USUAL CONTRIBUTION",
+        "suggested_dca": "SUGGESTED DCA",
+        "to_put_in": "TO PUT IN TODAY",
+        "sats_at_live": "sats at live price",
+        "regime_lbl": "Regime",
+        "calc_how": "HOW IT'S CALCULATED",
+        "calc_why": "WHY IT MATTERS FOR ACCUMULATING BTC",
+        "weight_lbl": "Weight",
+        "trajectory_lbl": "30-DAY TRAJECTORY",
+        "fav_accum": "Favorable for Accumulating",
+        "neut_regime": "Neutral Regime",
+        "caut_headwind": "Caution / Headwind",
+        "indicators_title": "8 MARKET INDICATORS",
+        "indicators_sub": "Hover or click any indicator card to unfold its 30-day sparkline & methodology",
+        "why_title": "WHY TODAY'S SCORE? (KEY DRIVERS)",
+        "why_mvrv_lbl": "On-Chain Valuation (MVRV)",
+        "why_mvrv_txt": "realized value — well below the 3.5x cycle top threshold, signaling healthy accumulation territory.",
+        "why_m2_lbl": "Global Liquidity (US M2)",
+        "why_m2_txt": "year-over-year — expanding money supply acts as a structural tailwind for BTC.",
+        "why_dxy_lbl": "Macro Dollar Index (DXY)",
+        "why_dxy_risen": "risen",
+        "why_dxy_fallen": "fallen",
+        "why_dxy_headwind": "headwind for BTC",
+        "why_dxy_tailwind": "tailwind for BTC",
+        "why_sent_lbl": "Retail Sentiment & Search Interest",
+        "why_sent_txt": "Google search interest sits in the",
+        "why_sent_sub": "percentile — quiet accumulation without retail euphoria.",
+        "chart_title": "SCORE VS. BITCOIN PRICE",
+        "chart_sub": "Gold line = Accumulation Score (0–100) • Orange line = BTC Price (USD)",
+        "log_scale_lbl": "Log BTC Scale",
+        "ema_toggle_lbl": "Show 200d EMA",
+        "backtest_title": "HISTORICAL VALIDATION & SMART DCA BACKTESTER",
+        "backtest_sub": "Compare Score-Adjusted Smart DCA against Standard Flat DCA over any historical window",
+        "bt_start_lbl": "Start Date",
+        "bt_end_lbl": "End Date",
+        "bt_daily_lbl": "Base Daily DCA Amount ($)",
+        "bt_flat_title": "STANDARD FLAT DCA",
+        "bt_smart_title": "SCORE-ADJUSTED SMART DCA",
+        "bt_alpha_title": "SMART DCA ADVANTAGE (ALPHA)",
+        "bt_total_invested": "Total Invested",
+        "bt_curr_val": "Current Value",
+        "bt_avg_price": "Avg Buy Price",
+        "bt_cheaper_entry": "Cheaper Avg Entry",
+        "bt_outperformance": "ROI Outperformance",
+        "bt_period": "Tested Period",
+        "days_lbl": "days",
+        "zone_title": "TIME SPENT IN EACH ZONE (2018–2026 CALIBRATION)",
+        "zone_sub": "Most of the time: neutral. Extremes are rare by design.",
+        "cycle_title": "REAL-WORLD CYCLE BOTTOMS & TOPS",
+        "cycle_ftx_sub": "Days from the actual FTX cycle bottom (~$15,500).",
+        "cycle_bear_sub": "Deep in the 2018 bear market capitulation.",
+        "cycle_ath_sub": "Weeks before the 2021 cycle all-time high (~$69,000).",
+        "cycle_rally_sub": "Post-election parabolic rally (+50% above EMA200 trend while DXY rose).",
+        "faq_title": "FREQUENTLY ASKED",
+        "faq_span": "QUESTIONS",
+        "fng_extreme_fear": "Extreme Fear",
+        "fng_fear": "Fear",
+        "fng_neutral": "Neutral",
+        "fng_greed": "Greed",
+        "fng_extreme_greed": "Extreme Greed",
+        "rec_Strong Buy": "Increase Daily DCA by +50%",
+        "recsub_Strong Buy": "Extreme fear & deep cycle valuation. Historically rare (~5% of days).",
+        "rec_Buy More": "Increase Daily DCA by +25%",
+        "recsub_Buy More": "Market flashes undervaluation signals.",
+        "rec_Neutral": "Maintain Normal Daily DCA",
+        "recsub_Neutral": "Market is at fair value equilibrium (~50% of days).",
+        "rec_Caution": "Exercise Caution — Keep Base DCA",
+        "recsub_Caution": "Momentum and valuations running warm (~20% of days).",
+        "rec_Overheated": "Overheated Market — Pause Escalation",
+        "recsub_Overheated": "Extreme greed and stretched valuation (~5% of days).",
+    },
+    "TR": {
+        "tagline": "Sayılarla daha akıllı BTC biriktirin. Günlük DCA sinyali.",
+        "subdesc": "8 piyasa göstergesinden tek bir 0–100 skoru: 0 aşırı ısınmış (tepe), 100 ise güçlü toplama/birikim fırsatını gösterir.",
+        "score_label": "SKOR",
+        "btc_price_label": "BTC FİYATI",
+        "overheated": "AŞIRI ISINMIŞ",
+        "neutral": "NÖTR",
+        "strong_buy": "GÜÇLÜ ALIM",
+        "usual_contrib": "NORMAL GÜNLÜK ALIMINIZ",
+        "suggested_dca": "ÖNERİLEN ÇARPAN",
+        "to_put_in": "BUGÜN ALINACAK TUTAR",
+        "sats_at_live": "canlı fiyat ile yaklaşık satoshi",
+        "regime_lbl": "Bölge",
+        "calc_how": "NASIL HESAPLANIR?",
+        "calc_why": "BTC BİRİKTİRMEK İÇİN NEDEN ÖNEMLİ?",
+        "weight_lbl": "Ağırlık",
+        "trajectory_lbl": "30 GÜNLÜK SEYİR",
+        "fav_accum": "Birikim İçin Çok Uygun",
+        "neut_regime": "Nötr Piyasa Dengesi",
+        "caut_headwind": "Dikkat / Piyasa Rüzgarı Ters",
+        "indicators_title": "8 PİYASA GÖSTERGESİ (CANLI)",
+        "indicators_sub": "30 günlük trend grafiğini ve hesaplama detaylarını açmak için kartların üzerine gelin veya tıklayın",
+        "why_title": "BUGÜNKÜ SKORUN NEDENİ (ANA ETKENLER)",
+        "why_mvrv_lbl": "Zincir Üstü Değerleme (MVRV)",
+        "why_mvrv_txt": "gerçekleşen piyasa değeri — 3.5x döngü tepe eşiğinin çok altında, sağlıklı birikim bölgesine işaret ediyor.",
+        "why_m2_lbl": "Küresel Likidite (ABD M2)",
+        "why_m2_txt": "yıllık büyüme — genişleyen para arzı Bitcoin için yapısal bir itici güç görevi görür.",
+        "why_dxy_lbl": "Makro Dolar Endeksi (DXY)",
+        "why_dxy_risen": "yükseldi",
+        "why_dxy_fallen": "geriledi",
+        "why_dxy_headwind": "BTC için karşı rüzgar (baskı)",
+        "why_dxy_tailwind": "BTC için destekleyici rüzgar",
+        "why_sent_lbl": "Bireysel İlgi & Arama Hacmi",
+        "why_sent_txt": "Google arama ilgisi",
+        "why_sent_sub": "yüzdelik dilimde — bireysel çılgınlık ve FOMO olmadan sessizce birikim yapılıyor.",
+        "chart_title": "SKOR VE BITCOIN FİYAT GRAFİĞİ",
+        "chart_sub": "Altın çizgi = Birikim Skoru (0–100) • Turuncu çizgi = BTC Fiyatı (USD)",
+        "log_scale_lbl": "Logaritmik BTC Ölçeği",
+        "ema_toggle_lbl": "200 Günlük EMA'yı Göster",
+        "backtest_title": "TARİHSEL DOĞRULAMA & AKILLI DCA BACKTEST SİMÜLATÖRÜ",
+        "backtest_sub": "Skor Bazlı Akıllı DCA stratejisini Standart Sabit DCA ile geçmiş veriler üzerinde karşılaştırın",
+        "bt_start_lbl": "Başlangıç Tarihi",
+        "bt_end_lbl": "Bitiş Tarihi",
+        "bt_daily_lbl": "Temel Günlük DCA Tutarı ($)",
+        "bt_flat_title": "STANDART SABİT DCA",
+        "bt_smart_title": "SKOR AYARLI AKILLI DCA",
+        "bt_alpha_title": "AKILLI DCA AVANTAJI (EKSTRA GETİRİ)",
+        "bt_total_invested": "Toplam Yatırılan",
+        "bt_curr_val": "Güncel Portföy Değeri",
+        "bt_avg_price": "Ortalama Alış Maliyeti",
+        "bt_cheaper_entry": "Daha Ucuz Alım İndirimi",
+        "bt_outperformance": "Getiri Üstünlüğü (Alfa)",
+        "bt_period": "Test Edilen Süre",
+        "days_lbl": "gün",
+        "zone_title": "HER BÖLGEDE GEÇİRİLEN ZAMAN (2018–2026 KALİBRASYONU)",
+        "zone_sub": "Zamanın çoğu nötr geçer. Uç noktalar bilinçli olarak nadir görülür.",
+        "cycle_title": "GERÇEK DÜNYADAN DÖNGÜ DİPLERİ VE TEPELERİ",
+        "cycle_ftx_sub": "FTX çöküşündeki gerçek döngü dibine (~$15,500) sadece birkaç gün kala.",
+        "cycle_bear_sub": "2018 ayı piyasasının en derin teslimiyet ve panik dönemi.",
+        "cycle_ath_sub": "2021 döngüsünün tüm zamanlar rekorundan (~$69,000) birkaç hafta önce.",
+        "cycle_rally_sub": "Seçim sonrası parabolik yükseliş (DXY artarken 200 günlük EMA'nın +%50 üzerine fırladı).",
+        "faq_title": "SIKÇA SORULAN",
+        "faq_span": "SORULAR",
+        "fng_extreme_fear": "Aşırı Korku",
+        "fng_fear": "Korku",
+        "fng_neutral": "Nötr",
+        "fng_greed": "Açgözlülük",
+        "fng_extreme_greed": "Aşırı Açgözlülük",
+        "rec_Strong Buy": "Günlük DCA'nı %50 artır",
+        "recsub_Strong Buy": "Aşırı korku ve derin döngü değeri. Tarihsel olarak nadir (~%5).",
+        "rec_Buy More": "Günlük DCA'nı %25 artır",
+        "recsub_Buy More": "Piyasa düşük değerlenme sinyalleri veriyor.",
+        "rec_Neutral": "Normal günlük DCA'na devam et",
+        "recsub_Neutral": "Piyasa adil değer dengesinde (~%50 zaman).",
+        "rec_Caution": "Dikkatli ol — temel DCA'nı koru",
+        "recsub_Caution": "Momentum ve değerleme ısınıyor (~%20 zaman).",
+        "rec_Overheated": "Piyasa aşırı ısınmış — DCA'yı artırma",
+        "recsub_Overheated": "Aşırı açgözlülük ve gergin değerleme (~%5 zaman).",
+    },
+}
+
+SIGNALS_EXPLAINER = {
+    "EN": [
+        {
+            "key": "mvrv",
+            "title": "MVRV",
+            "how": "Market Value divided by Realized Value — compares BTC's current price to the average price at which every coin last moved on-chain.",
+            "why": "Near or below 1, the average holder is underwater — historically a strong signal of cycle bottoms. Above 3.5+ has flagged prior cycle tops.",
+        },
+        {
+            "key": "google_trends",
+            "title": "Google Trends",
+            "how": "Worldwide search interest for \"Bitcoin,\" normalized 0–100 by Google itself.",
+            "why": "Low interest often means the public isn't paying attention yet. Extreme search spikes have historically coincided with euphoric tops.",
+        },
+        {
+            "key": "dxy",
+            "title": "DXY",
+            "how": "An official index tracking the US dollar's value against a basket of major currencies (EUR, JPY, GBP...). Pulled directly from the market.",
+            "why": "BTC has historically moved inversely to the dollar. A weakening dollar has often coincided with risk assets like BTC gaining ground.",
+        },
+        {
+            "key": "m2_yoy",
+            "title": "Liquidity (M2)",
+            "how": "Year-over-year growth in the US M2 money supply — cash, checking and savings deposits. Sourced directly from the Federal Reserve (FRED).",
+            "why": "More money in the system tends to flow into risk assets over time. Expanding liquidity has historically been a tailwind for BTC.",
+        },
+        {
+            "key": "fng",
+            "title": "Fear & Greed",
+            "how": "A daily 0–100 index blending market volatility, momentum, trading volume and social sentiment. Published by alternative.me.",
+            "why": "Extreme fear has historically lined up with local bottoms — moments when buying felt terrible in the moment and great a year later.",
+        },
+        {
+            "key": "ema200_ratio",
+            "title": "EMA200 (daily)",
+            "how": "The average closing price of the last 200 days, weighted so recent days count more. We measure how far today's price sits above or below it.",
+            "why": "One of the most widely watched trend lines in all of finance. Deep dips below it have historically marked strong accumulation zones for BTC.",
+        },
+        {
+            "key": "rsi14",
+            "title": "RSI14",
+            "how": "Relative Strength Index over the last 14 days — measures the speed and size of recent price moves on a 0–100 scale, using Wilder's original smoothing.",
+            "why": "Below 30 is classic \"oversold\" territory (heavy selling, often overdone). Above 70 is \"overbought\" (rallies running hot).",
+        },
+        {
+            "key": "btc_dominance",
+            "title": "BTC Dominance",
+            "how": "Bitcoin's share of the total cryptocurrency market cap, sourced from CoinGecko.",
+            "why": "Rising dominance often signals capital consolidating into BTC over speculative altcoins. Weighted lightly (4%) as the most debated signal.",
+        },
+    ],
+    "TR": [
+        {
+            "key": "mvrv",
+            "title": "MVRV",
+            "how": "Piyasa Değeri / Gerçekleşen Değer — BTC'nin anlık fiyatını, cüzdanlardaki her bir coinin zincir üstünde el değiştirdiği ortalama maliyetle karşılaştırır.",
+            "why": "1 seviyesine yakın veya altında olması, ortalama yatırımcının zararda olduğunu gösterir — döngü diplerinin tarihsel en güçlü kanıtıdır. 3.5+ seviyeleri ise döngü tepelerini haber verir.",
+        },
+        {
+            "key": "google_trends",
+            "title": "Google Trends",
+            "how": "Dünya genelinde \"Bitcoin\" kelimesinin Google tarafından 0–100 arasında normalize edilmiş doğrudan arama ilgisi.",
+            "why": "Düşük arama ilgisi, henüz ana akım halkın piyasada olmadığını gösterir. Aşırı arama patlamaları ise daima coşkulu tepe noktalarıyla çakışmıştır.",
+        },
+        {
+            "key": "dxy",
+            "title": "DXY (Dolar Endeksi)",
+            "how": "ABD dolarının majör para birimleri sepeti (EUR, JPY, GBP...) karşısındaki değerini ölçen resmi küresel endeks.",
+            "why": "Bitcoin tarihsel olarak ABD doları ile ters korelasyon gösterir. Doların zayıflaması Bitcoin gibi risk ve değer saklama varlıklarına güçlü destek sağlar.",
+        },
+        {
+            "key": "m2_yoy",
+            "title": "Likidite (M2 Para Arzı)",
+            "how": "ABD M2 para arzının (nakit, vadesiz ve tasarruf mevduatları) yıllık bazda (YoY) büyüme oranı. Doğrudan Fed verilerinden alınır.",
+            "why": "Finansal sistemdeki para genişlemesi zamanla risk ve alternatif varlıklara akar. Büyüyen para arzı BTC birikimi için güçlü bir itici güçtür.",
+        },
+        {
+            "key": "fng",
+            "title": "Korku ve Açgözlülük",
+            "how": "Piyasa volatilitesi, hacmi, sosyal medya ve anketleri harmanlayan 0–100 arası günlük duygu endeksi.",
+            "why": "Aşırı korku (Extreme Fear), alım yapmanın en zor ancak 1 yıl sonra en karlı olduğu yerel dip noktalarıyla örtüşür.",
+        },
+        {
+            "key": "ema200_ratio",
+            "title": "EMA200 (200 Günlük)",
+            "how": "Son 200 günün ağırlıklı kapanış ortalaması. Bugünün fiyatının bu uzun vadeli ortalamanın ne kadar altında/üstünde kaldığını ölçeriz.",
+            "why": "Tüm finans dünyasının en çok izlediği ana trend çizgisi. Bu ortalamanın altına sarkan derin düşüşler BTC için tarihsel birikim fırsatı olmuştur.",
+        },
+        {
+            "key": "rsi14",
+            "title": "RSI14 (Göreceli Güç)",
+            "how": "Wilder smoothing yöntemiyle son 14 günün fiyat hareket hızını ve momentumunu 0–100 aralığında ölçer.",
+            "why": "30 altı aşırı satım (panik satışları, genellikle aşırıya kaçan dipler), 70 üzeri ise aşırı alım (piyasanın fazla ısındığı bölgeler) anlamına gelir.",
+        },
+        {
+            "key": "btc_dominance",
+            "title": "BTC Dominansı",
+            "how": "Bitcoin'in toplam kripto piyasa değeri içindeki yüzde payı (CoinGecko).",
+            "why": "Dominansın yükselmesi, spekülatif altcoinlerden çıkıp ana değer saklama varlığı Bitcoin'e kaçışı gösterir. En çok tartışılan metrik olduğu için ağırlığı düşük (%4) tutulmuştur.",
+        },
+    ],
+}
+
+
+def _fng_label(val: float, lang: str = "EN") -> str:
+    lbls = I18N.get(lang, I18N["EN"])
+    if val <= 24:
+        return lbls.get("fng_extreme_fear", "Extreme Fear")
+    if val <= 44:
+        return lbls.get("fng_fear", "Fear")
+    if val <= 55:
+        return lbls.get("fng_neutral", "Neutral")
+    if val <= 74:
+        return lbls.get("fng_greed", "Greed")
+    return lbls.get("fng_extreme_greed", "Extreme Greed")
+
+
+def _signal_color(heat_sub_score: float) -> str:
+    if heat_sub_score < 43.0:
+        return "#10b981"
+    if heat_sub_score <= 57.0:
+        return "#94a3b8"
+    return "#ef4444"
+
+
+def _signal_status_text(heat_sub_score: float, lang: str = "EN") -> str:
+    lbls = I18N.get(lang, I18N["EN"])
+    if heat_sub_score < 43.0:
+        return lbls.get("fav_accum", "Favorable for Accumulating")
+    if heat_sub_score <= 57.0:
+        return lbls.get("neut_regime", "Neutral Regime")
+    return lbls.get("caut_headwind", "Caution / Headwind")
+
+
+@st.cache_data(ttl=3600 * 4, show_spinner=False)
+def load_scored_data(start_date: str, fred_api_key: str, force_refresh: bool = False) -> pd.DataFrame:
+    cache_file = os.path.join(os.path.dirname(__file__), "btc_score_cache.csv")
+    raw_df = build_master_dataset(
+        start_date=start_date,
+        fred_api_key=fred_api_key or None,
+        cache_path=cache_file,
+        force_refresh=force_refresh,
+    )
+    return compute_accumulation_score(raw_df, high_is_buy=True)
+
+
+# ---------------------------------------------------------------------------
+# HERO SCORE + INTERACTIVE DCA CALCULATOR + 8 SPARKLINE CARDS COMPONENT
+# ---------------------------------------------------------------------------
+def render_hero_and_signals_component(
+    scored_df: pd.DataFrame, lang_dict: dict, lang: str = "TR"
+) -> None:
+    latest = scored_df.iloc[-1]
+    last_30 = scored_df.iloc[-30:]
+    score_val = int(round(float(latest["accumulation_score"])))
+    zone = classify_score_zone(float(latest["accumulation_score"]), high_is_buy=True)
+
+    btc_price = float(latest["close"])
+    pct_1d = float(latest.get("pct_change_1d", 0.0))
+    if pd.isna(pct_1d):
+        pct_1d = 0.0
+    pct_color = "#10b981" if pct_1d >= 0 else "#ef4444"
+    pct_sign = "+" if pct_1d > 0 else ""
+
+    fng_v = int(round(float(latest["fng"])))
+
+    # Format display values for all 8 signals
+    formatted_vals = {
+        "mvrv": f"{float(latest['mvrv']):.2f}",
+        "google_trends": f"{int(round(float(latest['google_trends'])))}",
+        "dxy": f"{float(latest['dxy']):.2f}",
+        "m2_yoy": f"{float(latest['m2_yoy']):.2f}%",
+        "fng": f"{fng_v} ({_fng_label(fng_v, lang)})",
+        "ema200_ratio": f"{float(latest['ema200_pct']):+.2f}%",
+        "rsi14": f"{float(latest['rsi14']):.2f}",
+        "btc_dominance": f"{float(latest['btc_dominance']):.2f}%",
+    }
+
+    series_col_map = {
+        "mvrv": "mvrv",
+        "google_trends": "google_trends",
+        "dxy": "dxy",
+        "m2_yoy": "m2_yoy",
+        "fng": "fng",
+        "ema200_ratio": "ema200_pct",
+        "rsi14": "rsi14",
+        "btc_dominance": "btc_dominance",
+    }
+
+    cards_payload = []
+    dates_30 = [d.strftime("%b %d") for d in last_30.index]
+    active_explainer = SIGNALS_EXPLAINER.get(lang, SIGNALS_EXPLAINER["EN"])
+    for item in active_explainer:
+        k = item["key"]
+        col_name = series_col_map[k]
+        heat_score = float(latest[f"score_{k}"])
+        s_color = _signal_color(heat_score)
+        s_status = _signal_status_text(heat_score, lang)
+        vals_30 = [round(float(v), 2) for v in last_30[col_name].tolist()]
+        weight_pct = int(round(SIGNAL_WEIGHTS[k] * 100))
+
+        cards_payload.append(
+            {
+                "key": k,
+                "title": item["title"],
+                "val": formatted_vals[k],
+                "color": s_color,
+                "status": s_status,
+                "weight": f"{weight_pct}%",
+                "how": item["how"],
+                "why": item["why"],
+                "vals_30": vals_30,
+                "dates_30": dates_30,
+                "min_30": round(min(vals_30), 2),
+                "max_30": round(max(vals_30), 2),
+            }
+        )
+
+    payload_json = json.dumps(cards_payload)
+    pointer_pct = min(max(float(latest["accumulation_score"]), 2.0), 98.0)
+    mult = zone.dca_multiplier
+
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700;800&display=swap');
+        * {{
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }}
+        body {{
+            background: transparent;
+            color: #f1f5f9;
+            font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+            overflow-x: hidden;
+        }}
+
+        /* 1. HERO CARD (Exact Match to thebitcoinscore.com + Enhanced Interactivity) */
+        .hero-card {{
+            background:
+                radial-gradient(600px 260px at 0% 0%, {zone.color_hex}1f, transparent 65%),
+                linear-gradient(165deg, #121824 0%, #0d1118 100%);
+            border: 1px solid #1f2937;
+            border-radius: 22px;
+            padding: 32px 34px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.04);
+            margin-bottom: 26px;
+            position: relative;
+            overflow: hidden;
+            animation: heroIn .7s cubic-bezier(.22,1,.36,1) both;
+        }}
+        .hero-card::before {{
+            content:""; position:absolute; inset:0; border-radius:22px; padding:1px; pointer-events:none;
+            background: linear-gradient(130deg, {zone.color_hex}88, transparent 35%, transparent 65%, rgba(247,147,26,.5));
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+        }}
+        @keyframes heroIn {{ from {{opacity:0; transform:translateY(18px) scale(.985);}} to {{opacity:1; transform:none;}} }}
+        @keyframes segIn {{ from {{transform:scaleX(0);}} to {{transform:scaleX(1);}} }}
+        .g-seg {{ transform-origin:left; animation: segIn .7s cubic-bezier(.22,1,.36,1) both; }}
+        .g-seg:nth-child(2){{animation-delay:.08s}} .g-seg:nth-child(3){{animation-delay:.16s}}
+        .g-seg:nth-child(4){{animation-delay:.24s}} .g-seg:nth-child(5){{animation-delay:.32s}}
+        @keyframes needleDrop {{ from {{opacity:0; transform:translate(-50%,-14px);}} to {{opacity:1; transform:translate(-50%,0);}} }}
+        .ind-card {{ animation: heroIn .5s cubic-bezier(.22,1,.36,1) both; }}
+        .hero-top-flex {{
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        }}
+        .score-giant-wrap {{
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }}
+        .score-giant-row {{
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }}
+        .score-giant {{
+            font-size: 5.8rem;
+            font-weight: 900;
+            line-height: 0.92;
+            letter-spacing: -3px;
+            color: {zone.color_hex};
+            text-shadow: 0 0 35px {zone.color_hex}40;
+        }}
+        .score-denom {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: #64748b;
+        }}
+        .zone-pill {{
+            margin-top: 14px;
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 16px;
+            border-radius: 999px;
+            border: 1.5px solid {zone.color_hex};
+            background: {zone.color_hex}15;
+            color: {zone.color_hex};
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }}
+
+        /* BTC Price Block */
+        .price-block {{
+            text-align: right;
+        }}
+        .price-micro-label {{
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: #94a3b8;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 6px;
+        }}
+        .live-pulse {{
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            animation: pulseGlow 2s infinite;
+        }}
+        @keyframes pulseGlow {{
+            0% {{ box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }}
+            70% {{ box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }}
+            100% {{ box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }}
+        }}
+        .price-row {{
+            display: flex;
+            align-items: baseline;
+            justify-content: flex-end;
+            gap: 10px;
+        }}
+        .price-val {{
+            font-size: 2.35rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.8px;
+        }}
+        .price-chg {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: {pct_color};
+        }}
+
+        /* 5-Segment Gauge Bar with Vertical Tick & Diamond Needle */
+        .gauge-section {{
+            margin: 30px 0 26px 0;
+        }}
+        .gauge-bar-container {{
+            position: relative;
+            padding: 14px 0 10px 0;
+        }}
+        .gauge-segments {{
+            display: grid;
+            grid-template-columns: 25fr 15fr 20fr 15fr 25fr;
+            gap: 4px;
+            height: 7px;
+            border-radius: 999px;
+        }}
+        .g-seg {{
+            height: 100%;
+            border-radius: 4px;
+        }}
+        .needle-wrap {{
+            position: absolute;
+            top: 0px;
+            left: {pointer_pct:.1f}%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+            animation: needleDrop .6s .45s cubic-bezier(.22,1,.36,1) both;
+        }}
+        .needle-line {{
+            width: 2px;
+            height: 12px;
+            background: {zone.color_hex};
+            box-shadow: 0 0 8px {zone.color_hex};
+        }}
+        .needle-diamond {{
+            width: 11px;
+            height: 11px;
+            background: {zone.color_hex};
+            transform: rotate(45deg);
+            margin-top: -3px;
+            box-shadow: 0 0 12px {zone.color_hex};
+            border: 1.5px solid #0a0e14;
+        }}
+        .gauge-labels {{
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.70rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: #64748b;
+        }}
+        .g-lbl {{
+            padding-top: 5px;
+            border-top: 1px solid #334155;
+        }}
+
+        /* Dynamic Recommendation Headline */
+        .dca-rec-title {{
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: {zone.color_hex};
+            letter-spacing: -0.4px;
+            margin-bottom: 6px;
+        }}
+        .dca-rec-sub {{
+            font-size: 0.98rem;
+            color: #94a3b8;
+            margin-bottom: 22px;
+        }}
+
+        /* 3-Column Interactive DCA Calculator */
+        .dca-calc-grid {{
+            display: grid;
+            grid-template-columns: 1.1fr 0.95fr 1.15fr;
+            background: #0d1118;
+            border: 1px solid #1f2937;
+            border-radius: 14px;
+            overflow: hidden;
+            position: relative;
+        }}
+        .dca-col {{
+            padding: 20px 22px;
+            border-right: 1px solid #1f2937;
+            position: relative;
+        }}
+        .dca-col:last-child {{
+            border-right: none;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(16, 185, 129, 0.04) 100%);
+        }}
+        .dca-col-lbl {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.70rem;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            color: #94a3b8;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }}
+        .dca-input-wrap {{
+            display: flex;
+            align-items: center;
+            background: #131822;
+            border: 1.5px solid #334155;
+            border-radius: 10px;
+            padding: 8px 14px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }}
+        .dca-input-wrap:focus-within {{
+            border-color: #f7931a;
+            box-shadow: 0 0 0 3px rgba(247, 147, 26, 0.2);
+        }}
+        .dollar-prefix {{
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #64748b;
+            margin-right: 6px;
+        }}
+        .dca-input {{
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #ffffff;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 1.45rem;
+            font-weight: 800;
+            width: 100%;
+        }}
+        .preset-row {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }}
+        .preset-btn {{
+            background: #161d29;
+            border: 1px solid #263142;
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 3px 9px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }}
+        .preset-btn:hover {{
+            border-color: #f7931a;
+            color: #ffffff;
+        }}
+        .mult-val {{
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin-top: 4px;
+        }}
+        .eq-circle {{
+            position: absolute;
+            right: -15px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #131822;
+            border: 1px solid #2d3748;
+            color: #94a3b8;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3;
+        }}
+        .today-out {{
+            font-size: 2.35rem;
+            font-weight: 900;
+            color: #10b981;
+            margin-top: 2px;
+            letter-spacing: -0.5px;
+        }}
+        .sats-sub {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.76rem;
+            color: #94a3b8;
+            margin-top: 6px;
+        }}
+
+        /* 2. THE 8 MARKET INDICATORS (4x2 Grid + Animated Sparkline Inspector Drawer) */
+        .ind-header-row {{
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin: 8px 0 12px 0;
+        }}
+        .ind-title {{
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #ffffff;
+        }}
+        .ind-sub {{
+            font-size: 0.82rem;
+            color: #64748b;
+        }}
+        .ind-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }}
+        .ind-card {{
+            background: #11161f;
+            border: 1px solid #1f2937;
+            border-left: 3.5px solid #10b981;
+            border-radius: 12px;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: all 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+            position: relative;
+        }}
+        .ind-card:hover, .ind-card.selected {{
+            transform: translateY(-2px);
+            background: #161d2a;
+            border-color: #f7931a;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+        }}
+        .ind-top {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }}
+        .ind-name {{
+            font-size: 0.80rem;
+            font-weight: 600;
+            color: #94a3b8;
+        }}
+        .ind-dot {{
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }}
+        .ind-val-row {{
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }}
+        .ind-val {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.22rem;
+            font-weight: 800;
+        }}
+        .mini-spark {{
+            width: 68px;
+            height: 26px;
+        }}
+
+        /* Animated Expandable Signal Inspector Drawer */
+        .inspector-drawer {{
+            margin-top: 14px;
+            background: linear-gradient(165deg, #131924 0%, #0d1118 100%);
+            border: 1px solid rgba(247, 147, 26, 0.45);
+            border-radius: 16px;
+            padding: 22px 26px;
+            display: grid;
+            grid-template-columns: 1.15fr 1fr;
+            gap: 26px;
+            align-items: center;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }}
+        .insp-badge-row {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }}
+        .insp-title {{
+            font-size: 1.55rem;
+            font-weight: 800;
+            color: #ffffff;
+        }}
+        .insp-pill {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.74rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 999px;
+        }}
+        .insp-kicker {{
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            color: #f7931a;
+            text-transform: uppercase;
+            margin-top: 12px;
+            margin-bottom: 4px;
+        }}
+        .insp-text {{
+            font-size: 0.90rem;
+            color: #cbd5e1;
+            line-height: 1.52;
+        }}
+        .spark-box {{
+            background: #0a0e14;
+            border: 1px solid #1f2937;
+            border-radius: 12px;
+            padding: 14px 16px;
+        }}
+        .spark-header {{
+            display: flex;
+            justify-content: space-between;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.74rem;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }}
+    </style>
+    </head>
+    <body>
+        <!-- 1. HERO SCORE + DCA CALCULATOR CARD -->
+        <div class="hero-card">
+            <div class="hero-top-flex">
+                <div class="score-giant-wrap">
+                    <div class="score-giant-row">
+                        <span class="score-giant" id="scoreNum">0</span>
+                        <span class="score-denom">/100</span>
+                    </div>
+                    <div class="zone-pill">{zone.name.upper()}</div>
+                </div>
+                <div class="price-block">
+                    <div class="price-micro-label">
+                        {lang_dict['btc_price_label']} <span class="live-pulse"></span> <span id="refreshTimer" style="font-size:0.68rem;opacity:0.75;font-family:'JetBrains Mono',monospace;">(15s)</span>
+                    </div>
+                    <div class="price-row">
+                        <span class="price-val" id="liveBtcPrice">${btc_price:,.0f}</span>
+                        <span class="price-chg" id="liveBtcChg">{pct_sign}{pct_1d:.2f}%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5-Segment Gauge Bar with Diamond Needle -->
+            <div class="gauge-section">
+                <div class="gauge-bar-container">
+                    <div class="needle-wrap">
+                        <div class="needle-line"></div>
+                        <div class="needle-diamond"></div>
+                    </div>
+                    <div class="gauge-segments">
+                        <div class="g-seg" style="background:#ef4444;"></div>
+                        <div class="g-seg" style="background:#7f1d1d;"></div>
+                        <div class="g-seg" style="background:#64748b;"></div>
+                        <div class="g-seg" style="background:#14532d;"></div>
+                        <div class="g-seg" style="background:#10b981;"></div>
+                    </div>
+                </div>
+                <div class="gauge-labels">
+                    <span class="g-lbl">{lang_dict['overheated']}</span>
+                    <span class="g-lbl">{lang_dict['neutral']}</span>
+                    <span class="g-lbl">{lang_dict['strong_buy']}</span>
+                </div>
+            </div>
+
+            <!-- Recommendation Headline -->
+            <div class="dca-rec-title">{lang_dict.get('rec_' + zone.name, zone.dca_headline)}</div>
+            <div class="dca-rec-sub">{lang_dict.get('recsub_' + zone.name, zone.dca_subtext)}</div>
+
+            <!-- 3-Column Live DCA Calculator -->
+            <div class="dca-calc-grid">
+                <div class="dca-col">
+                    <div class="dca-col-lbl">{lang_dict['usual_contrib']}</div>
+                    <div class="dca-input-wrap">
+                        <span class="dollar-prefix">$</span>
+                        <input type="number" id="dcaBaseInput" class="dca-input" value="50" min="1" max="100000" step="5">
+                    </div>
+                    <div class="preset-row">
+                        <button class="preset-btn" onclick="setDca(20)">$20</button>
+                        <button class="preset-btn" onclick="setDca(50)">$50</button>
+                        <button class="preset-btn" onclick="setDca(100)">$100</button>
+                        <button class="preset-btn" onclick="setDca(250)">$250</button>
+                        <button class="preset-btn" onclick="setDca(500)">$500</button>
+                    </div>
+                </div>
+                <div class="dca-col">
+                    <div class="dca-col-lbl">{lang_dict['suggested_dca']}</div>
+                    <div class="mult-val">×{mult:.2f}</div>
+                    <div class="sats-sub">{lang_dict['regime_lbl']}: {lang_dict.get(zone.name.lower(), zone.name)}</div>
+                    <div class="eq-circle">=</div>
+                </div>
+                <div class="dca-col">
+                    <div class="dca-col-lbl">{lang_dict['to_put_in']}</div>
+                    <div class="today-out" id="dcaTodayOut">$62.50</div>
+                    <div class="sats-sub" id="dcaSatsOut">≈ 85,045 {lang_dict['sats_at_live']}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. THE 8 MARKET INDICATORS GRID + ANIMATED 30-DAY SPARKLINE INSPECTOR -->
+        <div class="ind-header-row">
+            <div class="ind-title">{lang_dict['indicators_title']}</div>
+            <div class="ind-sub">{lang_dict['indicators_sub']}</div>
+        </div>
+        <div class="ind-grid" id="indGrid"></div>
+        <div class="inspector-drawer" id="inspDrawer"></div>
+
+        <script>
+            const MULT = {mult};
+            const BTC_PRICE = {btc_price};
+            const cardsData = {payload_json};
+            let selectedIdx = 0;
+
+            let currentBtcPrice = {btc_price};
+
+            // Score count-up animation
+            (function() {{
+                const el = document.getElementById('scoreNum');
+                const target = {score_val};
+                const t0 = performance.now(), dur = 1100;
+                function step(t) {{
+                    const p = Math.min((t - t0) / dur, 1);
+                    const e = 1 - Math.pow(1 - p, 3);
+                    el.textContent = Math.round(target * e);
+                    if (p < 1) requestAnimationFrame(step);
+                }}
+                requestAnimationFrame(step);
+            }})();
+
+            const dcaInput = document.getElementById('dcaBaseInput');
+            const dcaTodayOut = document.getElementById('dcaTodayOut');
+            const dcaSatsOut = document.getElementById('dcaSatsOut');
+            const livePriceEl = document.getElementById('liveBtcPrice');
+            const liveChgEl = document.getElementById('liveBtcChg');
+            const refreshTimerEl = document.getElementById('refreshTimer');
+
+            function updateDcaCalc() {{
+                const baseVal = parseFloat(dcaInput.value) || 0;
+                const finalUsd = baseVal * MULT;
+                const sats = Math.round((finalUsd / currentBtcPrice) * 100_000_000);
+                dcaTodayOut.textContent = '$' + finalUsd.toLocaleString('en-US', {{
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }});
+                dcaSatsOut.textContent = '≈ ' + sats.toLocaleString('en-US') + ' {lang_dict["sats_at_live"]}';
+            }}
+
+            function setDca(val) {{
+                dcaInput.value = val;
+                updateDcaCalc();
+            }}
+
+            dcaInput.addEventListener('input', updateDcaCalc);
+            updateDcaCalc();
+
+            // 15-second Live Price Auto-Updater with smooth flash
+            let countdown = 15;
+            async function fetchLiveBtcPrice() {{
+                try {{
+                    const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const newPrice = parseFloat(data.lastPrice);
+                    const priceChg = parseFloat(data.priceChangePercent);
+                    if (newPrice && !isNaN(newPrice)) {{
+                        currentBtcPrice = newPrice;
+                        if (livePriceEl) {{
+                            livePriceEl.textContent = '$' + Math.round(newPrice).toLocaleString('en-US');
+                            livePriceEl.style.transition = 'color 0.3s ease';
+                            livePriceEl.style.color = '#f7931a';
+                            setTimeout(() => {{ if (livePriceEl) livePriceEl.style.color = '#ffffff'; }}, 600);
+                        }}
+                        if (liveChgEl) {{
+                            const sign = priceChg >= 0 ? '+' : '';
+                            liveChgEl.textContent = sign + priceChg.toFixed(2) + '%';
+                            liveChgEl.style.color = priceChg >= 0 ? '#10b981' : '#ef4444';
+                        }}
+                        updateDcaCalc();
+                    }}
+                }} catch (e) {{
+                    // Fallback to CoinGecko if Binance blocked
+                    try {{
+                        const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
+                        if (cgRes.ok) {{
+                            const cgData = await cgRes.json();
+                            const p = cgData.bitcoin.usd;
+                            const chg = cgData.bitcoin.usd_24h_change;
+                            currentBtcPrice = p;
+                            if (livePriceEl) livePriceEl.textContent = '$' + Math.round(p).toLocaleString('en-US');
+                            if (liveChgEl) {{
+                                const sign = chg >= 0 ? '+' : '';
+                                liveChgEl.textContent = sign + chg.toFixed(2) + '%';
+                                liveChgEl.style.color = chg >= 0 ? '#10b981' : '#ef4444';
+                            }}
+                            updateDcaCalc();
+                        }}
+                    }} catch (err) {{}}
+                }}
+            }}
+
+            // Countdown ticker and 15-second trigger
+            setInterval(() => {{
+                countdown--;
+                if (countdown <= 0) {{
+                    countdown = 15;
+                    fetchLiveBtcPrice();
+                }}
+                if (refreshTimerEl) {{
+                    refreshTimerEl.textContent = '(' + countdown + 's)';
+                }}
+            }}, 1000);
+
+            function buildSparkSvg(vals, color, width, height, fillArea) {{
+                const minV = Math.min(...vals);
+                const maxV = Math.max(...vals);
+                const range = (maxV - minV) || 1;
+                const pad = 4;
+                const pts = vals.map((v, i) => {{
+                    const x = pad + (i / (vals.length - 1)) * (width - pad * 2);
+                    const y = (height - pad) - ((v - minV) / range) * (height - pad * 2);
+                    return `${{x.toFixed(1)}},${{y.toFixed(1)}}`;
+                }});
+                const polylinePoints = pts.join(' ');
+                if (!fillArea) {{
+                    return `<svg viewBox="0 0 ${{width}} ${{height}}" class="mini-spark">
+                        <polyline fill="none" stroke="${{color}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${{polylinePoints}}" />
+                    </svg>`;
+                }}
+                const areaPoints = `${{pad}},${{height - pad}} ${{polylinePoints}} ${{width - pad}},${{height - pad}}`;
+                const gradId = 'grad_' + Math.random().toString(36).substring(2, 7);
+                return `<svg viewBox="0 0 ${{width}} ${{height}}" style="width:100%;height:145px;display:block;">
+                    <defs>
+                        <linearGradient id="${{gradId}}" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="${{color}}" stop-opacity="0.38"/>
+                            <stop offset="100%" stop-color="${{color}}" stop-opacity="0.0"/>
+                        </linearGradient>
+                    </defs>
+                    <polygon fill="url(#${{gradId}})" points="${{areaPoints}}" />
+                    <polyline fill="none" stroke="${{color}}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${{polylinePoints}}" />
+                </svg>`;
+            }}
+
+            const indGrid = document.getElementById('indGrid');
+            const inspDrawer = document.getElementById('inspDrawer');
+
+            function renderIndicators() {{
+                indGrid.innerHTML = '';
+                cardsData.forEach((c, idx) => {{
+                    const div = document.createElement('div');
+                    div.className = 'ind-card' + (idx === selectedIdx ? ' selected' : '');
+                    div.style.borderLeftColor = c.color;
+                    div.style.animationDelay = (idx * 0.05) + 's';
+                    div.innerHTML = `
+                        <div class="ind-top">
+                            <span class="ind-name">${{c.title}}</span>
+                            <span class="ind-dot" style="background:${{c.color}};box-shadow:0 0 8px ${{c.color}};"></span>
+                        </div>
+                        <div class="ind-val-row">
+                            <span class="ind-val" style="color:${{c.color}};">${{c.val}}</span>
+                            ${{buildSparkSvg(c.vals_30, c.color, 68, 26, false)}}
+                        </div>
+                    `;
+                    div.addEventListener('mouseenter', () => selectCard(idx));
+                    div.addEventListener('click', () => selectCard(idx));
+                    indGrid.appendChild(div);
+                }});
+                renderDrawer();
+            }}
+
+            function selectCard(idx) {{
+                if (idx === selectedIdx) return;
+                selectedIdx = idx;
+                const allCards = indGrid.querySelectorAll('.ind-card');
+                allCards.forEach((el, i) => el.classList.toggle('selected', i === selectedIdx));
+                renderDrawer();
+            }}
+
+            function renderDrawer() {{
+                const c = cardsData[selectedIdx];
+                inspDrawer.style.borderColor = c.color + '66';
+                inspDrawer.innerHTML = `
+                    <div>
+                        <div class="insp-badge-row">
+                            <span class="insp-title">${{c.title}}</span>
+                            <span class="insp-pill" style="color:${{c.color}};border:1px solid ${{c.color}};background:${{c.color}}18;">
+                                ${{c.val}} • ${{c.status}}
+                            </span>
+                            <span class="insp-pill" style="color:#f7931a;border:1px solid rgba(247,147,26,0.4);background:rgba(247,147,26,0.1);">
+                                {lang_dict['weight_lbl']}: ${{c.weight}}
+                            </span>
+                        </div>
+                        <div class="insp-kicker">{lang_dict['calc_how']}</div>
+                        <div class="insp-text">${{c.how}}</div>
+                        <div class="insp-kicker">{lang_dict['calc_why']}</div>
+                        <div class="insp-text">${{c.why}}</div>
+                    </div>
+                    <div class="spark-box">
+                        <div class="spark-header">
+                            <span>{lang_dict['trajectory_lbl']} (${{c.dates_30[0]}} – ${{c.dates_30[c.dates_30.length - 1]}})</span>
+                            <span style="color:${{c.color}};font-weight:700;">Min: ${{c.min_30}} | Max: ${{c.max_30}}</span>
+                        </div>
+                        ${{buildSparkSvg(c.vals_30, c.color, 420, 145, true)}}
+                    </div>
+                `;
+            }}
+
+            renderIndicators();
+        </script>
+    </body>
+    </html>
+    """
+    components.html(html_code, height=1170, scrolling=False)
+
+
+# ---------------------------------------------------------------------------
+# DUAL-AXIS GOLD SCORE VS BTC PRICE INTERACTIVE CHART
+# ---------------------------------------------------------------------------
+def build_dual_axis_chart(
+    df: pd.DataFrame, use_log_scale: bool = True, show_ema: bool = True
+) -> go.Figure:
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Left Y-Axis: Gold Score Line (0-100) matching thebitcoinscore.com
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df["accumulation_score"],
+            name="The Bitcoin Score (0–100)",
+            mode="lines",
+            line=dict(color="#f59e0b", width=2.2),
+            fill="tozeroy",
+            fillcolor="rgba(245, 158, 11, 0.08)",
+            hovertemplate="<b>Score:</b> %{y:.1f} / 100<extra></extra>",
+        ),
+        secondary_y=False,
+    )
+
+    # Right Y-Axis: BTC Price Line
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df["close"],
+            name="BTC Price (USD)",
+            mode="lines",
+            line=dict(color="#38bdf8", width=2.2),
+            hovertemplate="<b>BTC Price:</b> $%{y:,.0f}<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    if show_ema:
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df["ema200"],
+                name="200-Day EMA",
+                mode="lines",
+                line=dict(color="#64748b", width=1.4, dash="dot"),
+                hovertemplate="<b>EMA200:</b> $%{y:,.0f}<extra></extra>",
+            ),
+            secondary_y=True,
+        )
+
+    # Highlight Strong Buy (>=75) and Overheated (<=25) signals on BTC Price
+    sb_df = df[df["accumulation_score"] >= 75.0]
+    oh_df = df[df["accumulation_score"] <= 25.0]
+
+    fig.add_trace(
+        go.Scatter(
+            x=sb_df.index,
+            y=sb_df["close"],
+            name="Strong Buy Zone (≥75)",
+            mode="markers",
+            marker=dict(color="#10b981", size=5.5, symbol="triangle-up"),
+            hovertemplate="<b>Strong Buy</b> ($%{y:,.0f})<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=oh_df.index,
+            y=oh_df["close"],
+            name="Overheated Zone (≤25)",
+            mode="markers",
+            marker=dict(color="#ef4444", size=5.5, symbol="triangle-down"),
+            hovertemplate="<b>Overheated</b> ($%{y:,.0f})<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    fig.update_yaxes(
+        title_text="The Bitcoin Score (0–100)",
+        range=[0, 100],
+        tickvals=[0, 25, 40, 60, 75, 100],
+        gridcolor="rgba(255,255,255,0.05)",
+        secondary_y=False,
+    )
+    fig.update_yaxes(
+        title_text="BTC Price (USD)",
+        type="log" if use_log_scale else "linear",
+        gridcolor="rgba(255,255,255,0.0)",
+        secondary_y=True,
+    )
+    fig.update_xaxes(gridcolor="rgba(255,255,255,0.04)")
+
+    fig.update_layout(
+        paper_bgcolor="#11161f",
+        plot_bgcolor="#0a0e14",
+        font=dict(color="#f1f5f9", family="Plus Jakarta Sans, Inter"),
+        height=540,
+        hovermode="x unified",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            bgcolor="rgba(17,22,31,0.85)",
+        ),
+        margin=dict(l=20, r=20, t=50, b=20),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# MAIN APPLICATION
+# ---------------------------------------------------------------------------
+def main() -> None:
+    # Top Utility Bar with Language Selector (EN | TR) & Data Refresh
+    col_brand, col_lang = st.columns([3.2, 1.0])
+    with col_lang:
+        lang = st.segmented_control(
+            "Language",
+            options=["EN", "TR"],
+            default="TR",
+            label_visibility="collapsed",
+        )
+        if not lang:
+            lang = "TR"
+
+    L = I18N[lang]
+
+    scored_df = load_scored_data(start_date="2018-02-01", fred_api_key="")
+    latest = scored_df.iloc[-1]
+
+    with col_brand:
+        st.markdown(
+            f"""
+            <div class="tbs-header">
+                <div class="tbs-top-row">
+                    <div class="tbs-logo-group">
+                        <div class="tbs-logo-wrap">
+                            <div class="tbs-orange-circle">₿</div>
+                            <div class="tbs-tri-bars">
+                                <div class="tbs-tri-bar" style="background:#ef4444;"></div>
+                                <div class="tbs-tri-bar" style="background:#64748b;"></div>
+                                <div class="tbs-tri-bar" style="background:#10b981;"></div>
+                            </div>
+                        </div>
+                        <div class="tbs-main-title">The Bitcoin Score</div>
+                    </div>
+                    <div class="tbs-pill-bar">
+                        <span class="tbs-live-badge"><span class="tbs-live-dot"></span> LIVE 8-FACTOR ENGINE</span>
+                    </div>
+                </div>
+                <div class="tbs-orange-divider"></div>
+                <div class="tbs-tagline">{L['tagline']}</div>
+                <div class="tbs-subdesc">{L['subdesc']}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # -----------------------------------------------------------------------
+    # 1. HERO CARD + LIVE DCA CALCULATOR + 8 INTERACTIVE SPARKLINE CARDS
+    # -----------------------------------------------------------------------
+    render_hero_and_signals_component(scored_df, L, lang=lang)
+
+    # -----------------------------------------------------------------------
+    # 2. "WHY TODAY'S SCORE?" SYNTHESIS SECTION (MATCHING THEBITCOINSCORE.COM)
+    # -----------------------------------------------------------------------
+    dxy_90d = float(latest.get("dxy_90d_roc", 0.0))
+    m2_yoy = float(latest["m2_yoy"])
+    gt_pct = float(latest.get("gt_percentile", 12.0))
+    mvrv_val = float(latest["mvrv"])
+
+    dxy_color = "#ef4444" if dxy_90d > 0 else "#10b981"
+    dxy_word = L["why_dxy_risen"] if dxy_90d >= 0 else L["why_dxy_fallen"]
+    dxy_effect = L["why_dxy_headwind"] if dxy_90d > 0 else L["why_dxy_tailwind"]
+
+    st.markdown(
+        f"""
+        <div class="why-box">
+            <div class="why-title">{L['why_title']}</div>
+            <div class="why-item">
+                <span class="why-dot" style="background:#10b981;box-shadow:0 0 8px #10b981;"></span>
+                <span><b>{L['why_mvrv_lbl']}:</b> <b>{mvrv_val:.2f}x</b> {L['why_mvrv_txt']}</span>
+            </div>
+            <div class="why-item">
+                <span class="why-dot" style="background:#10b981;box-shadow:0 0 8px #10b981;"></span>
+                <span><b>{L['why_m2_lbl']}:</b> <b>{m2_yoy:+.2f}%</b> {L['why_m2_txt']}</span>
+            </div>
+            <div class="why-item">
+                <span class="why-dot" style="background:{dxy_color};box-shadow:0 0 8px {dxy_color};"></span>
+                <span><b>{L['why_dxy_lbl']}:</b> DXY {dxy_word} (90g: <b>{abs(dxy_90d):.2f}%</b>, Seviye: <b>{float(latest['dxy']):.2f}</b>) — {dxy_effect}.</span>
+            </div>
+            <div class="why-item">
+                <span class="why-dot" style="background:#10b981;box-shadow:0 0 8px #10b981;"></span>
+                <span><b>{L['why_sent_lbl']}:</b> Korku & Açgözlülük: <b>{int(latest['fng'])} ({_fng_label(float(latest['fng']), lang)})</b>, {L['why_sent_txt']} <b>%{gt_pct:.0f}</b> {L['why_sent_sub']}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # -----------------------------------------------------------------------
+    # 3. DUAL-AXIS INTERACTIVE CHART (SCORE IN GOLD vs BTC PRICE)
+    # -----------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="sec-title-row">
+            <div class="sec-title">{L['chart_title']}</div>
+            <div class="sec-sub">{L['chart_sub']}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    c_tf, c_log, c_ema = st.columns([2.2, 1.0, 1.0])
+    with c_tf:
+        tf_choice = st.segmented_control(
+            "Timeframe",
+            options=["3M", "1Y", "3Y", "5Y", "ALL (2018+)"],
+            default="ALL (2018+)",
+            label_visibility="collapsed",
+        )
+    with c_log:
+        use_log = st.toggle(L["log_scale_lbl"], value=True)
+    with c_ema:
+        show_ema = st.toggle(L["ema_toggle_lbl"], value=True)
+
+    plot_df = scored_df.copy()
+    if tf_choice == "3M":
+        plot_df = plot_df.loc[plot_df.index.max() - pd.DateOffset(months=3) :]
+    elif tf_choice == "1Y":
+        plot_df = plot_df.loc[plot_df.index.max() - pd.DateOffset(years=1) :]
+    elif tf_choice == "3Y":
+        plot_df = plot_df.loc[plot_df.index.max() - pd.DateOffset(years=3) :]
+    elif tf_choice == "5Y":
+        plot_df = plot_df.loc[plot_df.index.max() - pd.DateOffset(years=5) :]
+
+    st.plotly_chart(
+        build_dual_axis_chart(plot_df, use_log_scale=use_log, show_ema=show_ema),
+        width="stretch",
+    )
+
+    # -----------------------------------------------------------------------
+    # 4. INTERACTIVE HISTORICAL VALIDATION & SMART DCA BACKTESTER
+    # -----------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="sec-title-row">
+            <div class="sec-title">{L['backtest_title']}</div>
+            <div class="sec-sub">{L['backtest_sub']}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    bt_col1, bt_col2, bt_col3 = st.columns([1.1, 1.1, 1.2])
+    min_dt = scored_df.index.min().date()
+    max_dt = scored_df.index.max().date()
+    with bt_col1:
+        bt_start = st.date_input(L["bt_start_lbl"], value=pd.Timestamp("2020-01-01").date(), min_value=min_dt, max_value=max_dt)
+    with bt_col2:
+        bt_end = st.date_input(L["bt_end_lbl"], value=max_dt, min_value=min_dt, max_value=max_dt)
+    with bt_col3:
+        bt_daily_usd = st.number_input(L["bt_daily_lbl"], min_value=5.0, max_value=5000.0, value=50.0, step=10.0)
+
+    bt_res = run_dca_backtest(
+        scored_df,
+        start_date=str(bt_start),
+        end_date=str(bt_end),
+        base_daily_usd=float(bt_daily_usd),
+    )
+
+    res_c1, res_c2, res_c3 = st.columns(3, gap="medium")
+    with res_c1:
+        st.markdown(
+            f"""
+            <div class="tbs-card">
+                <div style="font-size:0.74rem;font-weight:700;color:#94a3b8;letter-spacing:0.08em;">{L['bt_flat_title']} (${bt_daily_usd:.0f}/{'GÜN' if lang=='TR' else 'DAY'})</div>
+                <div style="font-size:2.0rem;font-weight:800;color:#ffffff;margin:8px 0;">{bt_res['flat_btc']:.4f} BTC</div>
+                <div style="font-size:0.88rem;color:#94a3b8;">
+                    {L['bt_total_invested']}: <b style="color:#e2e8f0;">${bt_res['flat_invested']:,.0f}</b><br>
+                    {L['bt_curr_val']}: <b style="color:#e2e8f0;">${bt_res['flat_val']:,.0f}</b> ({bt_res['flat_roi']:+.1f}%)<br>
+                    {L['bt_avg_price']}: <b style="color:#e2e8f0;">${bt_res['flat_avg_price']:,.0f}</b>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with res_c2:
+        st.markdown(
+            f"""
+            <div class="tbs-card" style="border-color:#10b981;">
+                <div style="font-size:0.74rem;font-weight:700;color:#10b981;letter-spacing:0.08em;">{L['bt_smart_title']}</div>
+                <div style="font-size:2.0rem;font-weight:800;color:#10b981;margin:8px 0;">{bt_res['smart_btc']:.4f} BTC</div>
+                <div style="font-size:0.88rem;color:#94a3b8;">
+                    {L['bt_total_invested']}: <b style="color:#e2e8f0;">${bt_res['smart_invested']:,.0f}</b><br>
+                    {L['bt_curr_val']}: <b style="color:#10b981;">${bt_res['smart_val']:,.0f}</b> ({bt_res['smart_roi']:+.1f}%)<br>
+                    {L['bt_avg_price']}: <b style="color:#10b981;">${bt_res['smart_avg_price']:,.0f}</b>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with res_c3:
+        avg_discount = bt_res["flat_avg_price"] - bt_res["smart_avg_price"]
+        st.markdown(
+            f"""
+            <div class="tbs-card" style="border-color:#f7931a;">
+                <div style="font-size:0.74rem;font-weight:700;color:#f7931a;letter-spacing:0.08em;">{L['bt_alpha_title']}</div>
+                <div style="font-size:2.0rem;font-weight:800;color:#f7931a;margin:8px 0;">{bt_res['btc_extra_pct']:+.2f}% BTC</div>
+                <div style="font-size:0.88rem;color:#94a3b8;">
+                    {L['bt_cheaper_entry']}: <b style="color:#10b981;">-${avg_discount:,.0f} / BTC</b><br>
+                    {L['bt_outperformance']}: <b style="color:#10b981;">{bt_res['roi_alpha_pct']:+.2f}%</b><br>
+                    {L['bt_period']}: <b style="color:#e2e8f0;">{bt_res['days']:,} {L['days_lbl']}</b>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # -----------------------------------------------------------------------
+    # 5. TIME SPENT IN EACH ZONE & REAL-WORLD EXAMPLES
+    # -----------------------------------------------------------------------
+    st.markdown("<div style='height:22px;'></div>", unsafe_allow_html=True)
+    col_z1, col_z2 = st.columns(2, gap="large")
+
+    strong_buy_lbl = "Güçlü Alım" if lang == "TR" else "Strong Buy"
+    buy_more_lbl = "Daha Fazla Al" if lang == "TR" else "Buy More"
+    neutral_lbl = "Nötr" if lang == "TR" else "Neutral"
+    caution_lbl = "Dikkat" if lang == "TR" else "Caution"
+    overheated_lbl = "Aşırı Isınmış" if lang == "TR" else "Overheated"
+
+    with col_z1:
+        st.markdown(
+            f"""
+            <div class="tbs-card">
+                <div style="color:#f7931a;font-size:0.78rem;font-weight:800;letter-spacing:0.08em;margin-bottom:16px;">
+                    {L['zone_title']}
+                </div>
+                <div class="zone-bar-row">
+                    <div class="zone-bar-top"><span>{strong_buy_lbl} (75–100)</span><span style="color:#10b981;">~5%</span></div>
+                    <div class="zone-pill-fill" style="width:12%;background:#059669;"></div>
+                </div>
+                <div class="zone-bar-row">
+                    <div class="zone-bar-top"><span>{buy_more_lbl} (60–75)</span><span style="color:#10b981;">~20%</span></div>
+                    <div class="zone-pill-fill" style="width:40%;background:#10b981;"></div>
+                </div>
+                <div class="zone-bar-row">
+                    <div class="zone-bar-top"><span>{neutral_lbl} (40–60)</span><span style="color:#f59e0b;">~50%</span></div>
+                    <div class="zone-pill-fill" style="width:100%;background:#f59e0b;"></div>
+                </div>
+                <div class="zone-bar-row">
+                    <div class="zone-bar-top"><span>{caution_lbl} (25–40)</span><span style="color:#f59e0b;">~20%</span></div>
+                    <div class="zone-pill-fill" style="width:40%;background:#d97706;"></div>
+                </div>
+                <div class="zone-bar-row">
+                    <div class="zone-bar-top"><span>{overheated_lbl} (0–25)</span><span style="color:#ef4444;">~5%</span></div>
+                    <div class="zone-pill-fill" style="width:12%;background:#ef4444;"></div>
+                </div>
+                <div style="font-size:0.84rem;color:#64748b;margin-top:14px;">
+                    {L['zone_sub']}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with col_z2:
+        st.markdown(
+            f"""
+            <div class="tbs-card">
+                <div style="color:#f7931a;font-size:0.78rem;font-weight:800;letter-spacing:0.08em;margin-bottom:14px;">
+                    {L['cycle_title']}
+                </div>
+                <div style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #1f2937;">
+                    <span style="color:#10b981;font-weight:800;">{strong_buy_lbl.upper()} • Ara 2022 (~$16,600)</span> — <b>{L['score_label']}: 84.8</b><br>
+                    <span style="font-size:0.85rem;color:#94a3b8;">{L['cycle_ftx_sub']}</span>
+                </div>
+                <div style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #1f2937;">
+                    <span style="color:#10b981;font-weight:800;">{strong_buy_lbl.upper()} • Şub–Nis 2018 (~$7,000)</span> — <b>{L['score_label']}: 85.0</b><br>
+                    <span style="font-size:0.85rem;color:#94a3b8;">{L['cycle_bear_sub']}</span>
+                </div>
+                <div style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #1f2937;">
+                    <span style="color:#ef4444;font-weight:800;">{overheated_lbl.upper()} • Eki 2021 (~$61,000)</span> — <b>{L['score_label']}: ~25.0</b><br>
+                    <span style="font-size:0.85rem;color:#94a3b8;">{L['cycle_ath_sub']}</span>
+                </div>
+                <div>
+                    <span style="color:#ef4444;font-weight:800;">{overheated_lbl.upper()} • Kas 2024 (~$98,000)</span> — <b>{L['score_label']}: 23.3</b><br>
+                    <span style="font-size:0.85rem;color:#94a3b8;">{L['cycle_rally_sub']}</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # -----------------------------------------------------------------------
+    # 6. FREQUENTLY ASKED QUESTIONS (SMOOTH ACCORDION)
+    # -----------------------------------------------------------------------
+    st.markdown(
+        f'<div class="sec-title-row"><div class="sec-title">{L["faq_title"]} <span>{L["faq_span"]}</span></div></div>',
+        unsafe_allow_html=True,
+    )
+    if lang == "TR":
+        faqs = [
+            (
+                "The Bitcoin Score (Birikim Skoru) nasıl çalışır?",
+                "Zincir üstü değerleme (MVRV), teknik trend ve momentum (200 günlük EMA, Wilder RSI14), küresel makro likidite (ABD M2 yıllık değişimi, DXY), piyasa hissiyatı (Korku & Açgözlülük), halkın ilgisi (Google Trends) ve piyasa yapısı (BTC Dominansı) olmak üzere 8 bağımsız piyasa göstergesini her gün 0 ile 100 arasında tek bir bileşik skorda toplar.",
+            ),
+            (
+                "8 gösterge nasıl ağırlıklandırılır ve kalibre edilir?",
+                "MVRV (%22) ve EMA200 mesafesi (%18) en yüksek yapısal ağırlığa sahiptir. Ardından RSI14 (%14), Korku & Açgözlülük (%14), DXY (%10), M2 Likidite (%10), Google Trends (%8) ve BTC Dominansı (%4 - en tartışmalı metrik olduğu için hafif) gelir. Tarihsel dağılım ~%5 Güçlü Alım, ~%20 Daha Fazla Al, ~%50 Nötr, ~%20 Dikkat ve ~%5 Aşırı Isınmış olarak dengelenmiştir.",
+            ),
+            (
+                "Skor ayarlı Akıllı DCA, standart sabit DCA'dan gerçekten daha mı çok kazandırır?",
+                "Evet — piyasa aşırı korkulu ve ucuzken alım tutarını çarpanla (×1.25 ile ×1.50) artırarak, aşırı ısındığında ise alımları kısıp sakin kalarak ortalama BTC maliyetinizi sistematik biçimde düşürür. Tehlikeli 'tamamen gir / tamamen çık' zamanlama stresine girmeden üstün getiri (alfa) üretir.",
+            ),
+        ]
+    else:
+        faqs = [
+            (
+                "How does The Bitcoin Score work?",
+                "It aggregates 8 independent market signals spanning on-chain valuation (MVRV), technical trend & momentum (200d EMA, Wilder's RSI14), macro liquidity (US M2 YoY, DXY), sentiment (Fear & Greed), retail attention (Google Trends), and market structure (BTC Dominance) into a single 0–100 daily score.",
+            ),
+            (
+                "How are the 8 signals weighted and calibrated?",
+                "MVRV (22%) and EMA200 distance (18%) carry the highest structural weight, followed by RSI14 (14%), Fear & Greed (14%), DXY (10%), M2 Liquidity (10%), Google Trends (8%), and BTC Dominance (lightly weighted at 4%). The composite score is quantile-calibrated so historical occupancy matches ~5% Strong Buy, ~20% Buy More, ~50% Neutral, ~20% Caution, and ~5% Overheated.",
+            ),
+            (
+                "Does score-adjusted DCA actually outperform regular DCA?",
+                "Yes — by scaling up daily contributions (×1.25 to ×1.50) when Bitcoin is undervalued and fearful, and scaling back when the market is overheated, Smart DCA systematically lowers your average BTC purchase price without attempting risky all-in/all-out market timing.",
+            ),
+        ]
+    for q, a in faqs:
+        with st.expander(q, expanded=False):
+            st.write(a)
+
+
+if __name__ == "__main__":
+    main()
