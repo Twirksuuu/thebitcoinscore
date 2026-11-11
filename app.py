@@ -825,44 +825,68 @@ def render_hero_and_signals_component(
         }}
         .gauge-bar-container {{
             position: relative;
-            padding: 14px 0 10px 0;
+            padding: 22px 0 10px 0;
         }}
         .gauge-segments {{
             display: grid;
             grid-template-columns: 25fr 15fr 20fr 15fr 25fr;
-            gap: 4px;
-            height: 7px;
+            gap: 5px;
+            height: 9px;
             border-radius: 999px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
         }}
         .g-seg {{
             height: 100%;
-            border-radius: 4px;
+            border-radius: 5px;
+            position: relative;
         }}
         .needle-wrap {{
             position: absolute;
-            top: 0px;
+            top: 2px;
             left: {pointer_pct:.1f}%;
             transform: translateX(-50%);
             display: flex;
             flex-direction: column;
             align-items: center;
             pointer-events: none;
-            animation: needleDrop .6s .45s cubic-bezier(.22,1,.36,1) both;
+            animation: needleDrop .7s .4s cubic-bezier(.22,1,.36,1) both;
+            z-index: 5;
+            filter: drop-shadow(0 0 10px {zone.color_hex});
         }}
-        .needle-line {{
-            width: 2px;
-            height: 12px;
-            background: {zone.color_hex};
-            box-shadow: 0 0 8px {zone.color_hex};
+        .needle-score-tag {{
+            background: #0f172a;
+            color: {zone.color_hex};
+            border: 1.5px solid {zone.color_hex};
+            border-radius: 6px;
+            padding: 1px 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.70rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            margin-bottom: 2px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+            white-space: nowrap;
         }}
-        .needle-diamond {{
-            width: 11px;
-            height: 11px;
+        .needle-arrow {{
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid {zone.color_hex};
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+            animation: arrowBob 2s infinite ease-in-out;
+        }}
+        .needle-pulse-ring {{
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
             background: {zone.color_hex};
-            transform: rotate(45deg);
-            margin-top: -3px;
+            margin-top: 1px;
             box-shadow: 0 0 12px {zone.color_hex};
-            border: 1.5px solid #0a0e14;
+        }}
+        @keyframes arrowBob {{
+            0%, 100% {{ transform: translateY(0); }}
+            50% {{ transform: translateY(-2px); }}
         }}
         .gauge-labels {{
             display: flex;
@@ -1162,19 +1186,20 @@ def render_hero_and_signals_component(
                 </div>
             </div>
 
-            <!-- 5-Segment Gauge Bar with Diamond Needle -->
+            <!-- 5-Segment Gauge Bar with Glowing Precision Arrow & Value Tag -->
             <div class="gauge-section">
                 <div class="gauge-bar-container">
                     <div class="needle-wrap">
-                        <div class="needle-line"></div>
-                        <div class="needle-diamond"></div>
+                        <div class="needle-score-tag">{pointer_pct:.0f}</div>
+                        <div class="needle-arrow"></div>
+                        <div class="needle-pulse-ring"></div>
                     </div>
                     <div class="gauge-segments">
-                        <div class="g-seg" style="background:#ef4444;"></div>
-                        <div class="g-seg" style="background:#7f1d1d;"></div>
-                        <div class="g-seg" style="background:#64748b;"></div>
-                        <div class="g-seg" style="background:#14532d;"></div>
-                        <div class="g-seg" style="background:#10b981;"></div>
+                        <div class="g-seg" style="background:linear-gradient(90deg, #ef4444, #dc2626);"></div>
+                        <div class="g-seg" style="background:linear-gradient(90deg, #ea580c, #d97706);"></div>
+                        <div class="g-seg" style="background:linear-gradient(90deg, #d97706, #64748b);"></div>
+                        <div class="g-seg" style="background:linear-gradient(90deg, #059669, #10b981);"></div>
+                        <div class="g-seg" style="background:linear-gradient(90deg, #10b981, #00f59b);"></div>
                     </div>
                 </div>
                 <div class="gauge-labels">
