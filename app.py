@@ -29,7 +29,7 @@ import scoring
 importlib.reload(data_fetcher)
 importlib.reload(scoring)
 
-from data_fetcher import build_master_dataset
+from data_fetcher import build_master_dataset, fetch_bitcoin_magazine_news
 from scoring import (
     SIGNAL_WEIGHTS,
     classify_score_zone,
@@ -286,6 +286,132 @@ CUSTOM_CSS = """
         height: 12px;
         border-radius: 999px;
     }
+
+    /* Bitcoin Magazine News Section */
+    .news-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+        gap: 16px;
+        margin-top: 12px;
+        margin-bottom: 18px;
+    }
+    .news-card {
+        background: linear-gradient(165deg, #131924 0%, #0d1118 100%);
+        border: 1px solid #1f2937;
+        border-radius: 16px;
+        padding: 20px 22px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        text-decoration: none !important;
+        transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+        position: relative;
+        overflow: hidden;
+    }
+    .news-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(247, 147, 26, 0.65);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55), 0 0 20px rgba(247, 147, 26, 0.12);
+    }
+    .news-card-featured {
+        grid-column: span 2;
+        display: grid;
+        grid-template-columns: 1.25fr 1fr;
+        gap: 22px;
+        align-items: center;
+    }
+    @media (max-width: 820px) {
+        .news-card-featured {
+            grid-column: span 1;
+            grid-template-columns: 1fr;
+        }
+    }
+    .news-thumb-wrap {
+        width: 100%;
+        height: 155px;
+        border-radius: 11px;
+        overflow: hidden;
+        margin-bottom: 14px;
+        background: #0a0e14;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .news-card-featured .news-thumb-wrap {
+        height: 215px;
+        margin-bottom: 0;
+    }
+    .news-thumb {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.35s ease;
+    }
+    .news-card:hover .news-thumb {
+        transform: scale(1.04);
+    }
+    .news-meta-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 9px;
+    }
+    .news-badge {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #f7931a;
+        background: rgba(247, 147, 26, 0.12);
+        border: 1px solid rgba(247, 147, 26, 0.35);
+        padding: 3px 9px;
+        border-radius: 999px;
+    }
+    .news-date {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.70rem;
+        color: #64748b;
+    }
+    .news-headline {
+        font-size: 1.06rem;
+        font-weight: 800;
+        color: #f8fafc;
+        line-height: 1.38;
+        margin-bottom: 8px;
+        transition: color 0.2s ease;
+    }
+    .news-card-featured .news-headline {
+        font-size: 1.28rem;
+    }
+    .news-card:hover .news-headline {
+        color: #f7931a;
+    }
+    .news-excerpt {
+        font-size: 0.86rem;
+        color: #94a3b8;
+        line-height: 1.5;
+        margin-bottom: 14px;
+    }
+    .news-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: #cbd5e1;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        padding-top: 10px;
+        margin-top: auto;
+    }
+    .news-read-more {
+        color: #f7931a;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.74rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
 </style>
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
@@ -358,6 +484,10 @@ I18N = {
         "cycle_rally_sub": "Post-election parabolic rally (+50% above EMA200 trend while DXY rose).",
         "faq_title": "FREQUENTLY ASKED",
         "faq_span": "QUESTIONS",
+        "news_title": "BITCOIN",
+        "news_span": "NEWS",
+        "news_sub": "Live 5 latest headlines sourced directly from BitcoinMagazine.com",
+        "news_read": "Read on Bitcoin Magazine →",
         "fng_extreme_fear": "Extreme Fear",
         "fng_fear": "Fear",
         "fng_neutral": "Neutral",
@@ -437,6 +567,10 @@ I18N = {
         "cycle_rally_sub": "Seçim sonrası parabolik yükseliş (DXY artarken 200 günlük EMA'nın +%50 üzerine fırladı).",
         "faq_title": "SIKÇA SORULAN",
         "faq_span": "SORULAR",
+        "news_title": "BITCOIN",
+        "news_span": "HABERLERİ",
+        "news_sub": "BitcoinMagazine.com kaynağından anlık çekilen son 5 güncel Bitcoin haberi",
+        "news_read": "Haberi Oku (Bitcoin Magazine) →",
         "fng_extreme_fear": "Aşırı Korku",
         "fng_fear": "Korku",
         "fng_neutral": "Nötr",
@@ -600,6 +734,11 @@ def load_scored_data(start_date: str, fred_api_key: str, force_refresh: bool = F
         force_refresh=force_refresh,
     )
     return compute_accumulation_score(raw_df, high_is_buy=True)
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def load_bitcoin_news(limit: int = 5, lang: str = "TR") -> list[dict[str, str]]:
+    return fetch_bitcoin_magazine_news(limit=limit, target_lang=lang)
 
 
 # ---------------------------------------------------------------------------
@@ -825,7 +964,7 @@ def render_hero_and_signals_component(
         }}
         .gauge-bar-container {{
             position: relative;
-            padding: 22px 0 10px 0;
+            padding: 18px 0 10px 0;
         }}
         .gauge-segments {{
             display: grid;
@@ -842,7 +981,7 @@ def render_hero_and_signals_component(
         }}
         .needle-wrap {{
             position: absolute;
-            top: 2px;
+            top: -2px;
             left: {pointer_pct:.1f}%;
             transform: translateX(-50%);
             display: flex;
@@ -853,40 +992,23 @@ def render_hero_and_signals_component(
             z-index: 5;
             filter: drop-shadow(0 0 10px {zone.color_hex});
         }}
-        .needle-score-tag {{
-            background: #0f172a;
-            color: {zone.color_hex};
-            border: 1.5px solid {zone.color_hex};
-            border-radius: 6px;
-            padding: 1px 6px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.70rem;
-            font-weight: 800;
-            letter-spacing: 0.04em;
-            margin-bottom: 2px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
-            white-space: nowrap;
-        }}
-        .needle-arrow {{
-            width: 0;
-            height: 0;
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-top: 8px solid {zone.color_hex};
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+        .needle-svg {{
+            width: 20px;
+            height: 22px;
             animation: arrowBob 2s infinite ease-in-out;
         }}
         .needle-pulse-ring {{
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
-            background: {zone.color_hex};
-            margin-top: 1px;
+            background: #ffffff;
+            border: 2px solid {zone.color_hex};
+            margin-top: -2px;
             box-shadow: 0 0 12px {zone.color_hex};
         }}
         @keyframes arrowBob {{
             0%, 100% {{ transform: translateY(0); }}
-            50% {{ transform: translateY(-2px); }}
+            50% {{ transform: translateY(-3px); }}
         }}
         .gauge-labels {{
             display: flex;
@@ -1177,7 +1299,7 @@ def render_hero_and_signals_component(
                 </div>
                 <div class="price-block">
                     <div class="price-micro-label">
-                        {lang_dict['btc_price_label']} <span class="live-pulse"></span> <span id="refreshTimer" style="font-size:0.68rem;opacity:0.75;font-family:'JetBrains Mono',monospace;">(15s)</span>
+                        {lang_dict['btc_price_label']} <span class="live-pulse"></span>
                     </div>
                     <div class="price-row">
                         <span class="price-val" id="liveBtcPrice">${btc_price:,.0f}</span>
@@ -1186,12 +1308,13 @@ def render_hero_and_signals_component(
                 </div>
             </div>
 
-            <!-- 5-Segment Gauge Bar with Glowing Precision Arrow & Value Tag -->
+            <!-- 5-Segment Gauge Bar with Pure Sleek Arrow (No Number) -->
             <div class="gauge-section">
                 <div class="gauge-bar-container">
                     <div class="needle-wrap">
-                        <div class="needle-score-tag">{pointer_pct:.0f}</div>
-                        <div class="needle-arrow"></div>
+                        <svg class="needle-svg" viewBox="0 0 24 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 24L2 6L12 11L22 6L12 24Z" fill="{zone.color_hex}" stroke="#0a0e14" stroke-width="1.5" stroke-linejoin="round"/>
+                        </svg>
                         <div class="needle-pulse-ring"></div>
                     </div>
                     <div class="gauge-segments">
@@ -1299,8 +1422,7 @@ def render_hero_and_signals_component(
             dcaInput.addEventListener('input', updateDcaCalc);
             updateDcaCalc();
 
-            // 15-second Live Price Auto-Updater with smooth flash
-            let countdown = 15;
+            // 5-second Live Price Auto-Updater with smooth flash (no visible countdown timer)
             async function fetchLiveBtcPrice() {{
                 try {{
                     const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
@@ -1344,17 +1466,8 @@ def render_hero_and_signals_component(
                 }}
             }}
 
-            // Countdown ticker and 15-second trigger
-            setInterval(() => {{
-                countdown--;
-                if (countdown <= 0) {{
-                    countdown = 15;
-                    fetchLiveBtcPrice();
-                }}
-                if (refreshTimerEl) {{
-                    refreshTimerEl.textContent = '(' + countdown + 's)';
-                }}
-            }}, 1000);
+            // Fetch live price every 5 seconds
+            setInterval(fetchLiveBtcPrice, 5000);
 
             function buildSparkSvg(vals, color, width, height, fillArea) {{
                 const minV = Math.min(...vals);
@@ -1702,84 +1815,6 @@ def main() -> None:
     )
 
     # -----------------------------------------------------------------------
-    # 4. INTERACTIVE HISTORICAL VALIDATION & SMART DCA BACKTESTER
-    # -----------------------------------------------------------------------
-    st.markdown(
-        f"""
-        <div class="sec-title-row">
-            <div class="sec-title">{L['backtest_title']}</div>
-            <div class="sec-sub">{L['backtest_sub']}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    bt_col1, bt_col2, bt_col3 = st.columns([1.1, 1.1, 1.2])
-    min_dt = scored_df.index.min().date()
-    max_dt = scored_df.index.max().date()
-    with bt_col1:
-        bt_start = st.date_input(L["bt_start_lbl"], value=pd.Timestamp("2020-01-01").date(), min_value=min_dt, max_value=max_dt)
-    with bt_col2:
-        bt_end = st.date_input(L["bt_end_lbl"], value=max_dt, min_value=min_dt, max_value=max_dt)
-    with bt_col3:
-        bt_daily_usd = st.number_input(L["bt_daily_lbl"], min_value=5.0, max_value=5000.0, value=50.0, step=10.0)
-
-    bt_res = run_dca_backtest(
-        scored_df,
-        start_date=str(bt_start),
-        end_date=str(bt_end),
-        base_daily_usd=float(bt_daily_usd),
-    )
-
-    res_c1, res_c2, res_c3 = st.columns(3, gap="medium")
-    with res_c1:
-        st.markdown(
-            f"""
-            <div class="tbs-card">
-                <div style="font-size:0.74rem;font-weight:700;color:#94a3b8;letter-spacing:0.08em;">{L['bt_flat_title']} (${bt_daily_usd:.0f}/{'GÜN' if lang=='TR' else 'DAY'})</div>
-                <div style="font-size:2.0rem;font-weight:800;color:#ffffff;margin:8px 0;">{bt_res['flat_btc']:.4f} BTC</div>
-                <div style="font-size:0.88rem;color:#94a3b8;">
-                    {L['bt_total_invested']}: <b style="color:#e2e8f0;">${bt_res['flat_invested']:,.0f}</b><br>
-                    {L['bt_curr_val']}: <b style="color:#e2e8f0;">${bt_res['flat_val']:,.0f}</b> ({bt_res['flat_roi']:+.1f}%)<br>
-                    {L['bt_avg_price']}: <b style="color:#e2e8f0;">${bt_res['flat_avg_price']:,.0f}</b>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with res_c2:
-        st.markdown(
-            f"""
-            <div class="tbs-card" style="border-color:#10b981;">
-                <div style="font-size:0.74rem;font-weight:700;color:#10b981;letter-spacing:0.08em;">{L['bt_smart_title']}</div>
-                <div style="font-size:2.0rem;font-weight:800;color:#10b981;margin:8px 0;">{bt_res['smart_btc']:.4f} BTC</div>
-                <div style="font-size:0.88rem;color:#94a3b8;">
-                    {L['bt_total_invested']}: <b style="color:#e2e8f0;">${bt_res['smart_invested']:,.0f}</b><br>
-                    {L['bt_curr_val']}: <b style="color:#10b981;">${bt_res['smart_val']:,.0f}</b> ({bt_res['smart_roi']:+.1f}%)<br>
-                    {L['bt_avg_price']}: <b style="color:#10b981;">${bt_res['smart_avg_price']:,.0f}</b>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with res_c3:
-        avg_discount = bt_res["flat_avg_price"] - bt_res["smart_avg_price"]
-        st.markdown(
-            f"""
-            <div class="tbs-card" style="border-color:#f7931a;">
-                <div style="font-size:0.74rem;font-weight:700;color:#f7931a;letter-spacing:0.08em;">{L['bt_alpha_title']}</div>
-                <div style="font-size:2.0rem;font-weight:800;color:#f7931a;margin:8px 0;">{bt_res['btc_extra_pct']:+.2f}% BTC</div>
-                <div style="font-size:0.88rem;color:#94a3b8;">
-                    {L['bt_cheaper_entry']}: <b style="color:#10b981;">-${avg_discount:,.0f} / BTC</b><br>
-                    {L['bt_outperformance']}: <b style="color:#10b981;">{bt_res['roi_alpha_pct']:+.2f}%</b><br>
-                    {L['bt_period']}: <b style="color:#e2e8f0;">{bt_res['days']:,} {L['days_lbl']}</b>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    # -----------------------------------------------------------------------
     # 5. TIME SPENT IN EACH ZONE & REAL-WORLD EXAMPLES
     # -----------------------------------------------------------------------
     st.markdown("<div style='height:22px;'></div>", unsafe_allow_html=True)
@@ -1855,7 +1890,55 @@ def main() -> None:
         )
 
     # -----------------------------------------------------------------------
-    # 6. FREQUENTLY ASKED QUESTIONS (SMOOTH ACCORDION)
+    # 6. BITCOIN NEWS (5 LIVE ARTICLES FROM BITCOINMAGAZINE.COM)
+    # -----------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="sec-title-row">
+            <div class="sec-title">{L['news_title']} <span>{L['news_span']}</span></div>
+            <div class="sec-sub">{L['news_sub']}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    news_items = load_bitcoin_news(limit=5, lang=lang)
+    if news_items:
+        cards_html = ['<div class="news-grid">']
+        for idx, art in enumerate(news_items):
+            is_featured = idx == 0
+            card_cls = "news-card news-card-featured" if is_featured else "news-card"
+            thumb_html = ""
+            if art.get("image"):
+                thumb_html = (
+                    f'<div class="news-thumb-wrap">'
+                    f'<img src="{art["image"]}" class="news-thumb" alt="Bitcoin News" loading="lazy">'
+                    f"</div>"
+                )
+            cards_html.append(
+                f'<a href="{art["link"]}" target="_blank" rel="noopener noreferrer" class="{card_cls}">'
+                f"{thumb_html}"
+                f'<div style="display:flex;flex-direction:column;height:100%;justify-content:space-between;">'
+                f"<div>"
+                f'<div class="news-meta-row">'
+                f'<span class="news-badge">{art["category"]}</span>'
+                f'<span class="news-date">{art["published"]}</span>'
+                f"</div>"
+                f'<div class="news-headline">{art["title"]}</div>'
+                f'<div class="news-excerpt">{art["summary"]}</div>'
+                f"</div>"
+                f'<div class="news-footer">'
+                f'<span>✍️ {art["author"]}</span>'
+                f'<span class="news-read-more">{L["news_read"]}</span>'
+                f"</div>"
+                f"</div>"
+                f"</a>"
+            )
+        cards_html.append("</div>")
+        st.markdown("".join(cards_html), unsafe_allow_html=True)
+
+    # -----------------------------------------------------------------------
+    # 7. FREQUENTLY ASKED QUESTIONS (SMOOTH ACCORDION)
     # -----------------------------------------------------------------------
     st.markdown(
         f'<div class="sec-title-row"><div class="sec-title">{L["faq_title"]} <span>{L["faq_span"]}</span></div></div>',
