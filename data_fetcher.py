@@ -496,18 +496,25 @@ def build_master_dataset(
     start_date: str = "2018-02-01",
     fred_api_key: Optional[str] = None,
     cache_path: Optional[str] = "btc_score_cache.csv",
-    cache_ttl_hours: int = 6,
+    cache_ttl_hours: int = 1,
     force_refresh: bool = False,
 ) -> pd.DataFrame:
     """
     Fetches and merges all 8 signals + BTC Price onto a clean daily DatetimeIndex.
     Uses local CSV caching if `cache_path` is provided and fresh.
+    Auto-invalidates cache if cache is older than 1 hour or does not have today's UTC data.
     """
+    today_utc = datetime.now(timezone.utc).date()
     if not force_refresh and cache_path and os.path.exists(cache_path):
         mtime = datetime.fromtimestamp(os.path.getmtime(cache_path), tz=timezone.utc)
         if datetime.now(timezone.utc) - mtime < timedelta(hours=cache_ttl_hours):
-            logger.info("Loading cached dataset from %s", cache_path)
-            return pd.read_csv(cache_path, index_col="date", parse_dates=["date"])
+            try:
+                cached_df = pd.read_csv(cache_path, index_col="date", parse_dates=["date"])
+                if not cached_df.empty and cached_df.index.max().date() >= (today_utc - timedelta(days=1)):
+                    logger.info("Loading cached dataset from %s", cache_path)
+                    return cached_df
+            except Exception as e:
+                logger.warning("Error reading cache: %s. Fetching fresh data.", e)
 
     warmup_start = (pd.Timestamp(start_date) - pd.DateOffset(days=300)).strftime("%Y-%m-%d")
 

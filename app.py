@@ -589,13 +589,14 @@ def _signal_status_text(heat_sub_score: float, lang: str = "EN") -> str:
     return lbls.get("caut_headwind", "Caution / Headwind")
 
 
-@st.cache_data(ttl=3600 * 4, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_scored_data(start_date: str, fred_api_key: str, force_refresh: bool = False) -> pd.DataFrame:
     cache_file = os.path.join(os.path.dirname(__file__), "btc_score_cache.csv")
     raw_df = build_master_dataset(
         start_date=start_date,
         fred_api_key=fred_api_key or None,
         cache_path=cache_file,
+        cache_ttl_hours=1,
         force_refresh=force_refresh,
     )
     return compute_accumulation_score(raw_df, high_is_buy=True)
