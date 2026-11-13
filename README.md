@@ -79,8 +79,16 @@ Open your browser and navigate to `http://localhost:8501`.
 
 ## 🌐 Live Demo & Custom Domain
 
+- **Custom Domain:** [breachy.store](https://breachy.store)
 - **Streamlit Community Cloud:** [thebitcoinscore-7f64tlr4wik5bv3gd2pfzs.streamlit.app](https://thebitcoinscore-7f64tlr4wik5bv3gd2pfzs.streamlit.app/)
-- **Custom Domain:** `breachy.store` / `www.breachy.store`
+
+---
+
+## 🤝 Acknowledgements & Built With
+
+Developed with assistance from cutting-edge AI technologies:
+- **[Anthropic Claude](https://www.anthropic.com/claude)** — Architecture, indicator logic, and technical writing.
+- **[Google (Gemini & DeepMind)](https://deepmind.google/technologies/gemini/)** — Frontend design, styling, and automated deployment tooling.
 
 ---
 
