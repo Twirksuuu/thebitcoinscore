@@ -1770,11 +1770,11 @@ def main() -> None:
         lang = st.segmented_control(
             "Language",
             options=["EN", "TR"],
-            default="TR",
+            default="EN",
             label_visibility="collapsed",
         )
         if not lang:
-            lang = "TR"
+            lang = "EN"
 
     L = I18N[lang]
 
