@@ -1644,10 +1644,10 @@ def render_hero_and_signals_component(
                         function animateBtcPriceCountUp(targetPrice) {{
                 if (!livePriceEl) return;
                 const target = Math.round(targetPrice);
-                const dur = 380;
+                const dur = 260;
                 const t0 = performance.now() - 20;
                 function stepPrice(t) {{
-                    const p = Math.min(Math.max((t - t0) / dur, 0.04), 1);
+                    const p = Math.min(Math.max((t - t0) / dur, 0.05), 1);
                     const e = 1 - Math.pow(1 - p, 3);
                     const val = Math.max(1, Math.round(target * e));
                     livePriceEl.textContent = '$' + val.toLocaleString('en-US');
@@ -1679,7 +1679,7 @@ def render_hero_and_signals_component(
                 updateDcaCalc();
             }}
             
-            async function fetchLiveBtcPrice() {{
+                        async function fetchLiveBtcPrice() {{
                 const fetchBinance = (url) =>
                     fetch(url).then(r => {{ if (!r.ok) throw new Error(); return r.json(); }}).then(d => {{
                         const p = parseFloat(d.lastPrice);
@@ -1687,23 +1687,21 @@ def render_hero_and_signals_component(
                         if (!p || isNaN(p)) throw new Error();
                         return {{ price: p, chg: c }};
                     }});
-                const fetchCg = () =>
-                    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true')
-                        .then(r => {{ if (!r.ok) throw new Error(); return r.json(); }})
-                        .then(d => {{
-                            const p = parseFloat(d.bitcoin.usd);
-                            const c = parseFloat(d.bitcoin.usd_24h_change);
-                            if (!p || isNaN(p)) throw new Error();
-                            return {{ price: p, chg: c }};
-                        }});
                 try {{
                     const res = await Promise.any([
                         fetchBinance('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT'),
-                        fetchBinance('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT'),
-                        fetchCg()
+                        fetchBinance('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT')
                     ]);
                     applyLivePrice(res.price, res.chg);
-                }} catch (e) {{}}
+                }} catch (e) {{
+                    try {{
+                        const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
+                        if (cgRes.ok) {{
+                            const cgData = await cgRes.json();
+                            applyLivePrice(parseFloat(cgData.bitcoin.usd), parseFloat(cgData.bitcoin.usd_24h_change));
+                        }}
+                    }} catch (err) {{}}
+                }}
             }}
 
             
