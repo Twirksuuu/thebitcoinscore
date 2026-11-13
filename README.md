@@ -13,11 +13,11 @@
 
 Most retail market participants buy aggressively when Bitcoin is trading at all-time highs and stop accumulating during brutal bear-market bottoms. **The Bitcoin Score** flips emotional bias on its head using a transparent, multi-factor framework:
 
-- **0–25 (Aşırı Isınmış / Overheated):** Parabolic momentum, extreme greed, elevated MVRV. Caution advised.
-- **25–40 (Dikkat / Caution):** Neutral to overheated conditions.
-- **40–60 (Nötr / Neutral):** Fair-value equilibrium (~50% of historical time). Normal DCA suggested.
-- **60–75 (Daha Fazla Al / Buy More):** Undervaluation signals emerging across liquidity and on-chain metrics (+25% DCA).
-- **75–100 (Güçlü Alım / Strong Buy):** Rare, deep cyclical bottoms with extreme fear and historical capitulation (+50% DCA).
+- **0–25 (Overheated):** Parabolic momentum, extreme greed, elevated MVRV. Caution advised.
+- **25–40 (Caution):** Neutral to overheated conditions.
+- **40–60 (Neutral):** Fair-value equilibrium (~50% of historical time). Normal DCA suggested.
+- **60–75 (Buy More):** Undervaluation signals emerging across liquidity and on-chain metrics (+25% DCA).
+- **75–100 (Strong Buy):** Rare, deep cyclical bottoms with extreme fear and historical capitulation (+50% DCA).
 
 ---
 
