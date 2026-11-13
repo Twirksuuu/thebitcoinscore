@@ -1644,7 +1644,7 @@ def render_hero_and_signals_component(
             function animateBtcPriceCountUp(targetPrice) {{
                 if (!livePriceEl) return;
                 const target = Math.round(targetPrice);
-                const dur = 950;
+                const dur = 480;
                 const t0 = performance.now() - 20;
                 function stepPrice(t) {{
                     const p = Math.min(Math.max((t - t0) / dur, 0.02), 1);
