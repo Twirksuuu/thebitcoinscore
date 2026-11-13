@@ -26,9 +26,6 @@ import streamlit.components.v1 as components
 import data_fetcher
 import scoring
 
-importlib.reload(data_fetcher)
-importlib.reload(scoring)
-
 from data_fetcher import build_master_dataset, fetch_bitcoin_magazine_news
 from scoring import (
     SIGNAL_WEIGHTS,
@@ -322,9 +319,29 @@ CUSTOM_CSS = """
         align-items: center;
     }
     @media (max-width: 820px) {
+        .block-container {
+            padding-left: 0.85rem !important;
+            padding-right: 0.85rem !important;
+            padding-top: 1rem !important;
+        }
+        .tbs-top-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .tbs-logo-text {
+            font-size: 1.45rem !important;
+        }
+        .news-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+        }
         .news-card-featured {
             grid-column: span 1;
             grid-template-columns: 1fr;
+        }
+        .news-card-featured .news-thumb-wrap {
+            height: 175px;
         }
     }
     .news-thumb-wrap {
@@ -1284,6 +1301,53 @@ def render_hero_and_signals_component(
             color: #94a3b8;
             margin-bottom: 8px;
         }}
+        @media (max-width: 768px) {{
+            .hero-card {{
+                padding: 20px 16px;
+                border-radius: 16px;
+            }}
+            .hero-top-flex {{
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 14px;
+            }}
+            .price-block {{
+                text-align: left;
+            }}
+            .price-row {{
+                justify-content: flex-start;
+            }}
+            .score-giant {{
+                font-size: 3.4rem;
+            }}
+            .price-val {{
+                font-size: 1.85rem;
+            }}
+            .dca-grid {{
+                grid-template-columns: 1fr !important;
+                gap: 10px !important;
+            }}
+            .eq-circle {{
+                display: none !important;
+            }}
+            .ind-header-row {{
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }}
+            .ind-grid {{
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }}
+            .inspector-grid {{
+                grid-template-columns: 1fr !important;
+            }}
+        }}
+        @media (max-width: 440px) {{
+            .ind-grid {{
+                grid-template-columns: 1fr;
+            }}
+        }}
     </style>
     </head>
     <body>
@@ -1564,6 +1628,20 @@ def render_hero_and_signals_component(
             }}
 
             renderIndicators();
+
+            function syncIframeHeight() {{
+                try {{
+                    if (window.frameElement) {{
+                        const h = document.documentElement.scrollHeight;
+                        if (h > 100) window.frameElement.style.height = (h + 12) + 'px';
+                    }}
+                }} catch (e) {{}}
+            }}
+            syncIframeHeight();
+            window.addEventListener('resize', syncIframeHeight);
+            if (typeof ResizeObserver !== 'undefined') {{
+                new ResizeObserver(syncIframeHeight).observe(document.body);
+            }}
         </script>
     </body>
     </html>

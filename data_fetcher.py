@@ -690,11 +690,6 @@ def fetch_bitcoin_magazine_news(limit: int = 5, target_lang: str = "TR") -> list
                 elif len(summary) > 190:
                     summary = summary[:187].rstrip() + "..."
 
-                # Translate title and summary if target_lang == "TR"
-                if target_lang == "TR":
-                    title = translate_en_to_tr_free(title)
-                    summary = translate_en_to_tr_free(summary)
-
                 articles.append(
                     {
                         "title": title,
@@ -706,6 +701,15 @@ def fetch_bitcoin_magazine_news(limit: int = 5, target_lang: str = "TR") -> list
                         "image": img_url,
                     }
                 )
+            if target_lang == "TR" and articles:
+                from concurrent.futures import ThreadPoolExecutor
+
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    titles_fut = [executor.submit(translate_en_to_tr_free, a["title"]) for a in articles]
+                    sums_fut = [executor.submit(translate_en_to_tr_free, a["summary"]) for a in articles]
+                    for a, tf, sf in zip(articles, titles_fut, sums_fut):
+                        a["title"] = tf.result()
+                        a["summary"] = sf.result()
         except Exception as parse_exc:
             logger.warning("Failed to parse Bitcoin Magazine RSS XML: %s", parse_exc)
 
