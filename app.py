@@ -312,8 +312,9 @@ CUSTOM_CSS = """
         padding: 16px 18px;
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
-        gap: 10px;
+        justify-content: flex-start;
+        gap: 12px;
+        height: auto;
         text-decoration: none !important;
         transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
         box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
@@ -360,7 +361,7 @@ CUSTOM_CSS = """
     }
     .news-thumb-wrap {
         width: 100%;
-        height: 185px;
+        height: 235px;
         border-radius: 12px;
         overflow: hidden;
         margin-bottom: 12px;
@@ -371,7 +372,7 @@ CUSTOM_CSS = """
         border: none;
     }
     .news-card-featured .news-thumb-wrap {
-        height: 230px;
+        height: 270px;
         margin-bottom: 0;
     }
     .news-thumb {
@@ -2257,16 +2258,16 @@ def main() -> None:
             cards_html.append(
                 f'<a href="{art["link"]}" target="_blank" rel="noopener noreferrer" class="{card_cls}">'
                 f"{thumb_html}"
-                f'<div style="display:flex;flex-direction:column;height:100%;justify-content:space-between;">'
+                f'<div style="display:flex;flex-direction:column;flex:1;justify-content:space-between;">'
                 f"<div>"
                 f'<div class="news-meta-row">'
                 f'<span class="news-badge">{art["category"]}</span>'
                 f'<span class="news-date">{art["published"]}</span>'
                 f"</div>"
                 f'<div class="news-headline">{art["title"]}</div>'
-                f'<div class="news-excerpt">{art["summary"]}</div>'
+                f'<div class="news-excerpt" style="margin-bottom:10px;">{art["summary"]}</div>'
                 f"</div>"
-                f'<div class="news-footer">'
+                f'<div class="news-footer" style="margin-top:auto;padding-top:10px;">'
                 f'<span>✍️ {art["author"]}</span>'
                 f'<span class="news-read-more">{L["news_read"]}</span>'
                 f"</div>"
