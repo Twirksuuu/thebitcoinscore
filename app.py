@@ -1519,7 +1519,7 @@ def render_hero_and_signals_component(
                         {lang_dict['btc_price_label']} <span class="live-pulse"></span>
                     </div>
                     <div class="price-row">
-                        <span class="price-val" id="liveBtcPrice">${btc_price:,.0f}</span>
+                        <span class="price-val" id="liveBtcPrice">&nbsp;</span>
                         <span class="price-chg" id="liveBtcChg">{pct_sign}{pct_1d:.2f}%</span>
                     </div>
                 </div>
@@ -1639,17 +1639,41 @@ def render_hero_and_signals_component(
             dcaInput.addEventListener('input', updateDcaCalc);
             updateDcaCalc();
 
-            // 5-second Live Price Auto-Updater with smooth flash (no visible countdown timer)
+            
+            let hasInitialPriceAnimated = false;
+            function animateBtcPriceCountUp(targetPrice) {{
+                if (!livePriceEl) return;
+                const target = Math.round(targetPrice);
+                const dur = 950;
+                const t0 = performance.now() - 20;
+                function stepPrice(t) {{
+                    const p = Math.min(Math.max((t - t0) / dur, 0.02), 1);
+                    const e = 1 - Math.pow(1 - p, 3);
+                    const val = Math.max(1, Math.round(target * e));
+                    livePriceEl.textContent = '$' + val.toLocaleString('en-US');
+                    if (p < 1) {{
+                        requestAnimationFrame(stepPrice);
+                    }} else {{
+                        livePriceEl.textContent = '$' + target.toLocaleString('en-US');
+                    }}
+                }}
+                requestAnimationFrame(stepPrice);
+            }}
+            
+// 5-second Live Price Auto-Updater with smooth flash (no visible countdown timer)
             async function fetchLiveBtcPrice() {{
                 try {{
                     const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
-                    if (!res.ok) return;
+                                        if (!res.ok) throw new Error('Binance error');
                     const data = await res.json();
                     const newPrice = parseFloat(data.lastPrice);
                     const priceChg = parseFloat(data.priceChangePercent);
                     if (newPrice && !isNaN(newPrice)) {{
                         currentBtcPrice = newPrice;
-                        if (livePriceEl) {{
+                                                if (!hasInitialPriceAnimated) {{
+                            hasInitialPriceAnimated = true;
+                            animateBtcPriceCountUp(newPrice);
+                        }} else if (livePriceEl) {{
                             livePriceEl.textContent = '$' + Math.round(newPrice).toLocaleString('en-US');
                             livePriceEl.classList.add('price-flash');
                             setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
@@ -1669,8 +1693,10 @@ def render_hero_and_signals_component(
                             const cgData = await cgRes.json();
                             const p = cgData.bitcoin.usd;
                             const chg = cgData.bitcoin.usd_24h_change;
-                            currentBtcPrice = p;
-                            if (livePriceEl) {{
+                                                        if (!hasInitialPriceAnimated) {{
+                                hasInitialPriceAnimated = true;
+                                animateBtcPriceCountUp(p);
+                            }} else if (livePriceEl) {{
                                 livePriceEl.textContent = '$' + Math.round(p).toLocaleString('en-US');
                                 livePriceEl.classList.add('price-flash');
                                 setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
