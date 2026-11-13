@@ -1519,7 +1519,7 @@ def render_hero_and_signals_component(
                         {lang_dict['btc_price_label']} <span class="live-pulse"></span>
                     </div>
                     <div class="price-row">
-                        <span class="price-val" id="liveBtcPrice">${btc_price:,.0f}</span>
+                        <span class="price-val" id="liveBtcPrice">$0</span>
                         <span class="price-chg" id="liveBtcChg">{pct_sign}{pct_1d:.2f}%</span>
                     </div>
                 </div>
@@ -1598,6 +1598,32 @@ def render_hero_and_signals_component(
             let selectedIdx = 0;
 
             let currentBtcPrice = {btc_price};
+            let priceAnimated = false;
+
+            function animatePriceTo(targetPrice, duration = 1200) {{
+                if (!livePriceEl) return;
+                const startPrice = priceAnimated ? currentBtcPrice : 0;
+                priceAnimated = true;
+                const t0 = performance.now();
+                function step(t) {{
+                    const p = Math.min((t - t0) / duration, 1);
+                    // Smooth cubic-out easing
+                    const e = 1 - Math.pow(1 - p, 3);
+                    const currentVal = Math.round(startPrice + (targetPrice - startPrice) * e);
+                    livePriceEl.textContent = '$' + currentVal.toLocaleString('en-US');
+                    if (p < 1) {{
+                        requestAnimationFrame(step);
+                    }} else {{
+                        livePriceEl.textContent = '$' + Math.round(targetPrice).toLocaleString('en-US');
+                        livePriceEl.classList.add('price-flash');
+                        setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
+                    }}
+                }}
+                requestAnimationFrame(step);
+            }}
+
+            // Initial smooth roll-up from 0 towards initial dataset price
+            animatePriceTo({btc_price}, 1100);
 
             // Score count-up animation
             (function() {{
@@ -1665,11 +1691,16 @@ def render_hero_and_signals_component(
                         }}
 
                         if (newPrice && !isNaN(newPrice)) {{
+                            const prevPrice = currentBtcPrice;
                             currentBtcPrice = newPrice;
                             if (livePriceEl) {{
-                                livePriceEl.textContent = '$' + Math.round(newPrice).toLocaleString('en-US');
-                                livePriceEl.classList.add('price-flash');
-                                setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
+                                if (!priceAnimated) {{
+                                    animatePriceTo(newPrice, 1100);
+                                }} else if (Math.abs(newPrice - prevPrice) > 5) {{
+                                    animatePriceTo(newPrice, 600);
+                                }} else {{
+                                    livePriceEl.textContent = '$' + Math.round(newPrice).toLocaleString('en-US');
+                                }}
                             }}
                             if (liveChgEl && priceChg !== null && !isNaN(priceChg)) {{
                                 const sign = priceChg >= 0 ? '+' : '';
