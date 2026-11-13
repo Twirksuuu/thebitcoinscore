@@ -84,14 +84,6 @@ Open your browser and navigate to `http://localhost:8501`.
 
 ---
 
-## 🤝 Acknowledgements & Built With
-
-Developed with assistance from cutting-edge AI technologies:
-- **[Anthropic Claude](https://www.anthropic.com/claude)** — Architecture, indicator logic, and technical writing.
-- **[Google (Gemini & DeepMind)](https://deepmind.google/technologies/gemini/)** — Frontend design, styling, and automated deployment tooling.
-
----
-
 ## ⚠️ Disclaimer (Educational Purpose Only)
 
 This project and all metrics, scores, charts, and news feeds provided on **The Bitcoin Score** are strictly for **educational and informational purposes only** and do **not** constitute financial, investment, or trading advice. Always do your own research (DYOR) before making any financial decisions.
