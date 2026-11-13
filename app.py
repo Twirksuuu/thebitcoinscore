@@ -1632,8 +1632,12 @@ def render_hero_and_signals_component(
             function syncIframeHeight() {{
                 try {{
                     if (window.frameElement) {{
-                        const h = document.documentElement.scrollHeight;
-                        if (h > 100) window.frameElement.style.height = (h + 12) + 'px';
+                        const bodyRect = document.body.getBoundingClientRect();
+                        const h = Math.ceil(bodyRect.height);
+                        const cur = parseInt(window.frameElement.style.height || '0', 10);
+                        if (h > 100 && Math.abs(h - cur) > 4) {{
+                            window.frameElement.style.height = h + 'px';
+                        }}
                     }}
                 }} catch (e) {{}}
             }}
@@ -1764,17 +1768,65 @@ def build_dual_axis_chart(
 # MAIN APPLICATION
 # ---------------------------------------------------------------------------
 def main() -> None:
-    # Top Utility Bar with Language Selector (EN | TR) & Data Refresh
-    col_brand, col_lang = st.columns([3.2, 1.0])
+    # Top Utility Bar with Language Selector (EN | TR) & Theme Toggle (🌙 | ☀️)
+    col_brand, col_lang = st.columns([2.8, 1.4])
     with col_lang:
-        lang = st.segmented_control(
-            "Language",
-            options=["EN", "TR"],
-            default="EN",
-            label_visibility="collapsed",
+        c_l1, c_l2 = st.columns(2)
+        with c_l1:
+            lang = st.segmented_control(
+                "Language",
+                options=["EN", "TR"],
+                default="EN",
+                label_visibility="collapsed",
+            )
+            if not lang:
+                lang = "EN"
+        with c_l2:
+            theme_mode = st.segmented_control(
+                "Theme",
+                options=["🌙", "☀️"],
+                default="🌙",
+                label_visibility="collapsed",
+            )
+            if not theme_mode:
+                theme_mode = "🌙"
+
+    is_light = theme_mode == "☀️"
+    if is_light:
+        st.markdown(
+            """
+            <style>
+                .stApp {
+                    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%) !important;
+                    color: #0f172a !important;
+                }
+                .tbs-logo-text, .sec-title, .news-headline, .why-box h3 { color: #0f172a !important; }
+                .tbs-sub, .sec-sub, .news-excerpt, .news-footer, .why-item { color: #475569 !important; }
+                .tbs-card, .why-box, .news-card, [data-testid="stExpander"] {
+                    background: #ffffff !important;
+                    border-color: #e2e8f0 !important;
+                    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05) !important;
+                }
+                [data-testid="stSegmentedControl"] button, [data-testid="stButtonGroup"] button {
+                    background: #ffffff !important;
+                    border-color: #cbd5e1 !important;
+                    color: #334155 !important;
+                }
+                [data-testid="stSegmentedControl"] button[aria-checked="true"],
+                [data-testid="stButtonGroup"] button[aria-checked="true"] {
+                    background: rgba(247, 147, 26, 0.14) !important;
+                    border-color: #f7931a !important;
+                    color: #0f172a !important;
+                }
+                .disclaimer-banner {
+                    background: #fff7ed !important;
+                    border-color: #fed7aa !important;
+                    color: #9a3412 !important;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True,
         )
-        if not lang:
-            lang = "EN"
 
     L = I18N[lang]
 
@@ -2055,6 +2107,20 @@ def main() -> None:
     for q, a in faqs:
         with st.expander(q, expanded=False):
             st.write(a)
+
+    disclaimer_text = (
+        "⚠️ <b>Yasal Uyarı / Eğitim Amaçlıdır:</b> Bu platformda yer alan tüm veriler, skorlar, grafikler ve analizler yalnızca <b>eğitim ve bilgilendirme amaçlıdır</b>. Kesinlikle <b>yatırım tavsiyesi değildir</b>. Finansal kararlarınızı kendi araştırmanız ve risk toleransınız doğrultusunda alınız."
+        if lang == "TR"
+        else "⚠️ <b>Disclaimer / Educational Purpose Only:</b> All data, scores, charts, and analytics presented on this platform are strictly for <b>educational and informational purposes only</b> and do <b>not constitute financial or investment advice</b>. Always do your own research before making any financial decisions."
+    )
+    st.markdown(
+        f"""
+        <div class="disclaimer-banner" style="margin-top:28px;padding:16px 20px;border-radius:12px;background:rgba(247,147,26,0.08);border:1px solid rgba(247,147,26,0.28);color:#cbd5e1;font-size:0.84rem;line-height:1.55;text-align:center;">
+            {disclaimer_text}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 if __name__ == "__main__":
