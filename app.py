@@ -64,8 +64,7 @@ CUSTOM_CSS = """
 
     /* Entrance animation */
     @keyframes riseIn { from {opacity:0; transform:translateY(14px);} to {opacity:1; transform:none;} }
-    .tbs-header, .why-box, .tbs-card, .sec-title-row { animation: riseIn .6s cubic-bezier(.22,1,.36,1) both; }
-    .why-box { animation-delay:.1s; } .tbs-card { animation-delay:.15s; }
+    .tbs-header { animation: riseIn .6s cubic-bezier(.22,1,.36,1) both; }
     .tbs-card { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
     .tbs-card:hover { transform: translateY(-3px); border-color: rgba(247,147,26,.45); box-shadow: 0 18px 40px rgba(0,0,0,.5); }
     .why-box { background: linear-gradient(160deg, rgba(19,24,34,.9), rgba(13,17,24,.9)); backdrop-filter: blur(8px); }
@@ -283,6 +282,20 @@ CUSTOM_CSS = """
         height: 12px;
         border-radius: 999px;
     }
+    .zone-note {
+        font-size: 0.84rem;
+        color: #94a3b8;
+        margin-top: 14px;
+    }
+    .cycle-item {
+        padding-bottom: 12px;
+        margin-bottom: 12px;
+        border-bottom: 1px solid #1f2937;
+    }
+    .cycle-desc {
+        font-size: 0.85rem;
+        color: #94a3b8;
+    }
 
     /* Bitcoin Magazine News Section */
     .news-grid {
@@ -296,10 +309,11 @@ CUSTOM_CSS = """
         background: linear-gradient(165deg, #131924 0%, #0d1118 100%);
         border: 1px solid #1f2937;
         border-radius: 16px;
-        padding: 20px 22px;
+        padding: 16px 18px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
+        gap: 10px;
         text-decoration: none !important;
         transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
         box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
@@ -346,21 +360,27 @@ CUSTOM_CSS = """
     }
     .news-thumb-wrap {
         width: 100%;
-        height: 155px;
-        border-radius: 11px;
+        height: 185px;
+        border-radius: 12px;
         overflow: hidden;
-        margin-bottom: 14px;
-        background: #0a0e14;
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        margin-bottom: 12px;
+        background-color: transparent;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        border: none;
     }
     .news-card-featured .news-thumb-wrap {
-        height: 215px;
+        height: 230px;
         margin-bottom: 0;
     }
     .news-thumb {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+        width: 100% !important;
+        height: 100% !important;
+        max-width: none !important;
+        object-fit: cover !important;
+        display: block !important;
+        margin: 0 !important;
         transition: transform 0.35s ease;
     }
     .news-card:hover .news-thumb {
@@ -762,7 +782,7 @@ def load_bitcoin_news(limit: int = 5, lang: str = "TR") -> list[dict[str, str]]:
 # HERO SCORE + INTERACTIVE DCA CALCULATOR + 8 SPARKLINE CARDS COMPONENT
 # ---------------------------------------------------------------------------
 def render_hero_and_signals_component(
-    scored_df: pd.DataFrame, lang_dict: dict, lang: str = "TR"
+    scored_df: pd.DataFrame, lang_dict: dict, lang: str = "TR", is_light: bool = False
 ) -> None:
     latest = scored_df.iloc[-1]
     last_30 = scored_df.iloc[-30:]
@@ -967,6 +987,12 @@ def render_hero_and_signals_component(
             font-weight: 800;
             color: #ffffff;
             letter-spacing: -0.8px;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }}
+        .price-val.price-flash,
+        body.light-mode .price-val.price-flash {{
+            color: #f7931a !important;
+            text-shadow: 0 0 18px rgba(247, 147, 26, 0.45) !important;
         }}
         .price-chg {{
             font-family: 'JetBrains Mono', monospace;
@@ -1253,7 +1279,21 @@ def render_hero_and_signals_component(
             gap: 26px;
             align-items: center;
             box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
-            transition: opacity 0.3s ease, transform 0.3s ease;
+            transition: border-color 0.35s ease, box-shadow 0.35s ease;
+            position: relative;
+        }}
+        .insp-content-anim {{
+            animation: inspFadeSlide 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }}
+        @keyframes inspFadeSlide {{
+            from {{
+                opacity: 0;
+                transform: translateY(8px);
+            }}
+            to {{
+                opacity: 1;
+                transform: translateY(0);
+            }}
         }}
         .insp-badge-row {{
             display: flex;
@@ -1323,9 +1363,16 @@ def render_hero_and_signals_component(
             .price-val {{
                 font-size: 1.85rem;
             }}
-            .dca-grid {{
+            .dca-calc-grid {{
                 grid-template-columns: 1fr !important;
-                gap: 10px !important;
+                gap: 0 !important;
+            }}
+            .dca-col {{
+                border-right: none !important;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+            }}
+            .dca-col:last-child {{
+                border-bottom: none;
             }}
             .eq-circle {{
                 display: none !important;
@@ -1339,7 +1386,7 @@ def render_hero_and_signals_component(
                 grid-template-columns: repeat(2, 1fr);
                 gap: 10px;
             }}
-            .inspector-grid {{
+            .inspector-drawer {{
                 grid-template-columns: 1fr !important;
             }}
         }}
@@ -1348,9 +1395,114 @@ def render_hero_and_signals_component(
                 grid-template-columns: 1fr;
             }}
         }}
+
+        /* Light Mode Overrides (Soft Slate Toned Palette & High-Contrast Readability) */
+        body.light-mode {{
+            background: transparent !important;
+            color: #0f172a !important;
+        }}
+        body.light-mode .hero-card {{
+            background:
+                radial-gradient(600px 260px at 0% 0%, {zone.color_hex}18, transparent 65%),
+                linear-gradient(165deg, #f8fafc 0%, #f1f5f9 100%) !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08) !important;
+        }}
+        body.light-mode .hero-card::before {{
+            background: linear-gradient(130deg, {zone.color_hex}66, transparent 40%, transparent 65%, rgba(247, 147, 26, 0.35));
+        }}
+        body.light-mode .hero-top-flex {{
+            border-bottom: 1px solid #cbd5e1 !important;
+        }}
+        body.light-mode .price-val {{
+            color: #0f172a;
+        }}
+        body.light-mode .dca-input,
+        body.light-mode .mult-val,
+        body.light-mode .ind-title,
+        body.light-mode .insp-title {{
+            color: #0f172a !important;
+        }}
+        body.light-mode .score-denom,
+        body.light-mode .price-micro-label,
+        body.light-mode .dca-rec-sub,
+        body.light-mode .dca-col-lbl,
+        body.light-mode .sats-sub,
+        body.light-mode .ind-sub,
+        body.light-mode .ind-name,
+        body.light-mode .spark-header,
+        body.light-mode .gauge-labels {{
+            color: #334155 !important;
+            font-weight: 600 !important;
+        }}
+        body.light-mode .g-lbl {{
+            border-top-color: #94a3b8 !important;
+            color: #334155 !important;
+        }}
+        body.light-mode .gauge-segments {{
+            box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.16) !important;
+        }}
+        body.light-mode .dca-calc-grid {{
+            background: #e2e8f0 !important;
+            border: 1px solid #cbd5e1 !important;
+        }}
+        body.light-mode .dca-col {{
+            background: #f1f5f9 !important;
+            border-right: 1px solid #cbd5e1 !important;
+        }}
+        body.light-mode .dca-col:last-child {{
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(16, 185, 129, 0.06) 100%) !important;
+        }}
+        body.light-mode .dca-input-wrap {{
+            background: #ffffff !important;
+            border: 1.5px solid #94a3b8 !important;
+        }}
+        body.light-mode .dollar-prefix {{
+            color: #475569 !important;
+        }}
+        body.light-mode .preset-btn {{
+            background: #ffffff !important;
+            border: 1px solid #94a3b8 !important;
+            color: #1e293b !important;
+            font-weight: 700 !important;
+        }}
+        body.light-mode .preset-btn:hover {{
+            background: #fff7ed !important;
+            border-color: #f7931a !important;
+            color: #c2410c !important;
+        }}
+        body.light-mode .eq-circle {{
+            background: #ffffff !important;
+            border: 1px solid #94a3b8 !important;
+            color: #1e293b !important;
+        }}
+        body.light-mode .ind-card {{
+            background: #f8fafc !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
+        }}
+        body.light-mode .ind-card:hover,
+        body.light-mode .ind-card.selected {{
+            background: #ffffff !important;
+            border-color: #f7931a !important;
+            box-shadow: 0 8px 20px rgba(247, 147, 26, 0.15) !important;
+        }}
+        body.light-mode .inspector-drawer {{
+            background: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 100%) !important;
+            border: 1.5px solid #f7931a !important;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08) !important;
+        }}
+        body.light-mode .insp-text {{
+            color: #1e293b !important;
+            font-weight: 500 !important;
+        }}
+        body.light-mode .spark-box {{
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+        }}
     </style>
     </head>
-    <body>
+    <body class="{'light-mode' if is_light else 'dark-mode'}">
         <!-- 1. HERO SCORE + DCA CALCULATOR CARD -->
         <div class="hero-card">
             <div class="hero-top-flex">
@@ -1498,9 +1650,8 @@ def render_hero_and_signals_component(
                         currentBtcPrice = newPrice;
                         if (livePriceEl) {{
                             livePriceEl.textContent = '$' + Math.round(newPrice).toLocaleString('en-US');
-                            livePriceEl.style.transition = 'color 0.3s ease';
-                            livePriceEl.style.color = '#f7931a';
-                            setTimeout(() => {{ if (livePriceEl) livePriceEl.style.color = '#ffffff'; }}, 600);
+                            livePriceEl.classList.add('price-flash');
+                            setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
                         }}
                         if (liveChgEl) {{
                             const sign = priceChg >= 0 ? '+' : '';
@@ -1518,7 +1669,11 @@ def render_hero_and_signals_component(
                             const p = cgData.bitcoin.usd;
                             const chg = cgData.bitcoin.usd_24h_change;
                             currentBtcPrice = p;
-                            if (livePriceEl) livePriceEl.textContent = '$' + Math.round(p).toLocaleString('en-US');
+                            if (livePriceEl) {{
+                                livePriceEl.textContent = '$' + Math.round(p).toLocaleString('en-US');
+                                livePriceEl.classList.add('price-flash');
+                                setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
+                            }}
                             if (liveChgEl) {{
                                 const sign = chg >= 0 ? '+' : '';
                                 liveChgEl.textContent = sign + chg.toFixed(2) + '%';
@@ -1600,9 +1755,9 @@ def render_hero_and_signals_component(
 
             function renderDrawer() {{
                 const c = cardsData[selectedIdx];
-                inspDrawer.style.borderColor = c.color + '66';
+                inspDrawer.style.borderColor = c.color + '88';
                 inspDrawer.innerHTML = `
-                    <div>
+                    <div class="insp-content-anim">
                         <div class="insp-badge-row">
                             <span class="insp-title">${{c.title}}</span>
                             <span class="insp-pill" style="color:${{c.color}};border:1px solid ${{c.color}};background:${{c.color}}18;">
@@ -1617,7 +1772,7 @@ def render_hero_and_signals_component(
                         <div class="insp-kicker">{lang_dict['calc_why']}</div>
                         <div class="insp-text">${{c.why}}</div>
                     </div>
-                    <div class="spark-box">
+                    <div class="spark-box insp-content-anim">
                         <div class="spark-header">
                             <span>{lang_dict['trajectory_lbl']} (${{c.dates_30[0]}} – ${{c.dates_30[c.dates_30.length - 1]}})</span>
                             <span style="color:${{c.color}};font-weight:700;">Min: ${{c.min_30}} | Max: ${{c.max_30}}</span>
@@ -1625,23 +1780,29 @@ def render_hero_and_signals_component(
                         ${{buildSparkSvg(c.vals_30, c.color, 420, 145, true)}}
                     </div>
                 `;
+                syncIframeHeight();
             }}
 
             renderIndicators();
 
             function syncIframeHeight() {{
                 try {{
+                    const h = Math.ceil(document.body.scrollHeight || document.documentElement.scrollHeight);
                     if (window.frameElement) {{
-                        const bodyRect = document.body.getBoundingClientRect();
-                        const h = Math.ceil(bodyRect.height);
-                        const cur = parseInt(window.frameElement.style.height || '0', 10);
-                        if (h > 100 && Math.abs(h - cur) > 4) {{
-                            window.frameElement.style.height = h + 'px';
+                        window.frameElement.style.height = (h + 8) + 'px';
+                    }} else if (window.parent) {{
+                        const iframes = window.parent.document.querySelectorAll('iframe');
+                        for (let ifr of iframes) {{
+                            if (ifr.contentWindow === window) {{
+                                ifr.style.height = (h + 8) + 'px';
+                                break;
+                            }}
                         }}
                     }}
                 }} catch (e) {{}}
             }}
-            syncIframeHeight();
+            setTimeout(syncIframeHeight, 50);
+            setTimeout(syncIframeHeight, 300);
             window.addEventListener('resize', syncIframeHeight);
             if (typeof ResizeObserver !== 'undefined') {{
                 new ResizeObserver(syncIframeHeight).observe(document.body);
@@ -1650,14 +1811,14 @@ def render_hero_and_signals_component(
     </body>
     </html>
     """
-    components.html(html_code, height=1170, scrolling=False)
+    components.html(html_code, height=1210, scrolling=False)
 
 
 # ---------------------------------------------------------------------------
 # DUAL-AXIS GOLD SCORE VS BTC PRICE INTERACTIVE CHART
 # ---------------------------------------------------------------------------
 def build_dual_axis_chart(
-    df: pd.DataFrame, use_log_scale: bool = True, show_ema: bool = True
+    df: pd.DataFrame, use_log_scale: bool = True, show_ema: bool = True, is_light: bool = False
 ) -> go.Figure:
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
@@ -1730,25 +1891,41 @@ def build_dual_axis_chart(
         secondary_y=True,
     )
 
+    text_col = "#0f172a" if is_light else "#f1f5f9"
+    grid_col = "rgba(15,23,42,0.09)" if is_light else "rgba(255,255,255,0.05)"
+
     fig.update_yaxes(
         title_text="The Bitcoin Score (0–100)",
+        title_font=dict(color=text_col, size=13),
+        tickfont=dict(color=text_col, size=12),
+        title_standoff=18,
+        automargin=True,
         range=[0, 100],
         tickvals=[0, 25, 40, 60, 75, 100],
-        gridcolor="rgba(255,255,255,0.05)",
+        gridcolor=grid_col,
         secondary_y=False,
     )
     fig.update_yaxes(
         title_text="BTC Price (USD)",
+        title_font=dict(color=text_col, size=13),
+        tickfont=dict(color=text_col, size=12),
+        title_standoff=18,
+        automargin=True,
+        tickprefix="$",
         type="log" if use_log_scale else "linear",
-        gridcolor="rgba(255,255,255,0.0)",
+        gridcolor="rgba(0,0,0,0)",
         secondary_y=True,
     )
-    fig.update_xaxes(gridcolor="rgba(255,255,255,0.04)")
+    fig.update_xaxes(
+        tickfont=dict(color=text_col, size=12),
+        automargin=True,
+        gridcolor=grid_col,
+    )
 
     fig.update_layout(
-        paper_bgcolor="#11161f",
-        plot_bgcolor="#0a0e14",
-        font=dict(color="#f1f5f9", family="Plus Jakarta Sans, Inter"),
+        paper_bgcolor="#f8fafc" if is_light else "#11161f",
+        plot_bgcolor="#f1f5f9" if is_light else "#0a0e14",
+        font=dict(color=text_col, family="Plus Jakarta Sans, Inter"),
         height=540,
         hovermode="x unified",
         legend=dict(
@@ -1757,9 +1934,10 @@ def build_dual_axis_chart(
             y=1.02,
             xanchor="right",
             x=1,
-            bgcolor="rgba(17,22,31,0.85)",
+            font=dict(color=text_col, size=12),
+            bgcolor="rgba(248,250,252,0.92)" if is_light else "rgba(17,22,31,0.85)",
         ),
-        margin=dict(l=20, r=20, t=50, b=20),
+        margin=dict(l=72, r=78, t=55, b=40),
     )
     return fig
 
@@ -1797,30 +1975,59 @@ def main() -> None:
             """
             <style>
                 .stApp {
-                    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%) !important;
+                    background: linear-gradient(180deg, #e2e8f0 0%, #edf2f7 40%, #e2e8f0 100%) !important;
                     color: #0f172a !important;
                 }
-                .tbs-logo-text, .sec-title, .news-headline, .why-box h3 { color: #0f172a !important; }
-                .tbs-sub, .sec-sub, .news-excerpt, .news-footer, .why-item { color: #475569 !important; }
-                .tbs-card, .why-box, .news-card, [data-testid="stExpander"] {
-                    background: #ffffff !important;
-                    border-color: #e2e8f0 !important;
-                    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05) !important;
+                .tbs-main-title, .tbs-logo-text, .sec-title, .news-headline, .why-box h3,
+                [data-testid="stExpander"] summary, [data-testid="stExpander"] summary p,
+                .zone-bar-top, .tbs-card b, [data-testid="stWidgetLabel"] p,
+                [data-testid="stCheckbox"] label span, [data-testid="stCheckbox"] p {
+                    color: #0f172a !important;
                 }
+                .tbs-tagline {
+                    color: #1e293b !important;
+                    font-weight: 700 !important;
+                }
+                .tbs-subdesc, .tbs-sub, .sec-sub, .news-excerpt, .news-footer, .why-item,
+                .cycle-desc, .zone-note, [data-testid="stExpander"] p {
+                    color: #334155 !important;
+                    font-weight: 500 !important;
+                }
+                .tbs-pill-bar {
+                    background: #ecfdf5 !important;
+                    border: 1px solid #6ee7b7 !important;
+                    color: #065f46 !important;
+                }
+                .tbs-card, .why-box, .news-card, [data-testid="stExpander"], [data-testid="stPlotlyChart"] {
+                    background: #f8fafc !important;
+                    border: 1px solid #cbd5e1 !important;
+                    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06) !important;
+                }
+                .why-item, .cycle-item {
+                    border-bottom-color: #cbd5e1 !important;
+                }
+                .news-thumb-wrap {
+                    background-color: transparent !important;
+                    border: none !important;
+                }
+                .news-footer {
+                    border-top-color: #cbd5e1 !important;
+                }
+                .zone-bar-bg { background: #cbd5e1 !important; }
                 [data-testid="stSegmentedControl"] button, [data-testid="stButtonGroup"] button {
                     background: #ffffff !important;
-                    border-color: #cbd5e1 !important;
-                    color: #334155 !important;
+                    border-color: #94a3b8 !important;
+                    color: #1e293b !important;
                 }
                 [data-testid="stSegmentedControl"] button[aria-checked="true"],
                 [data-testid="stButtonGroup"] button[aria-checked="true"] {
-                    background: rgba(247, 147, 26, 0.14) !important;
+                    background: rgba(247, 147, 26, 0.16) !important;
                     border-color: #f7931a !important;
                     color: #0f172a !important;
                 }
                 .disclaimer-banner {
                     background: #fff7ed !important;
-                    border-color: #fed7aa !important;
+                    border-color: #fdba74 !important;
                     color: #9a3412 !important;
                 }
             </style>
@@ -1864,7 +2071,7 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # 1. HERO CARD + LIVE DCA CALCULATOR + 8 INTERACTIVE SPARKLINE CARDS
     # -----------------------------------------------------------------------
-    render_hero_and_signals_component(scored_df, L, lang=lang)
+    render_hero_and_signals_component(scored_df, L, lang=lang, is_light=is_light)
 
     # -----------------------------------------------------------------------
     # 2. "WHY TODAY'S SCORE?" SYNTHESIS SECTION (MATCHING THEBITCOINSCORE.COM)
@@ -1940,8 +2147,9 @@ def main() -> None:
         plot_df = plot_df.loc[plot_df.index.max() - pd.DateOffset(years=5) :]
 
     st.plotly_chart(
-        build_dual_axis_chart(plot_df, use_log_scale=use_log, show_ema=show_ema),
+        build_dual_axis_chart(plot_df, use_log_scale=use_log, show_ema=show_ema, is_light=is_light),
         width="stretch",
+        theme=None,
     )
 
     # -----------------------------------------------------------------------
@@ -1983,7 +2191,7 @@ def main() -> None:
                     <div class="zone-bar-top"><span>{overheated_lbl} (0–25)</span><span style="color:#ef4444;">~5%</span></div>
                     <div class="zone-pill-fill" style="width:12%;background:#ef4444;"></div>
                 </div>
-                <div style="font-size:0.84rem;color:#64748b;margin-top:14px;">
+                <div class="zone-note">
                     {L['zone_sub']}
                 </div>
             </div>
@@ -1998,21 +2206,21 @@ def main() -> None:
                 <div style="color:#f7931a;font-size:0.78rem;font-weight:800;letter-spacing:0.08em;margin-bottom:14px;">
                     {L['cycle_title']}
                 </div>
-                <div style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #1f2937;">
+                <div class="cycle-item">
                     <span style="color:#10b981;font-weight:800;">{strong_buy_lbl.upper()} • Ara 2022 (~$16,600)</span> — <b>{L['score_label']}: 84.8</b><br>
-                    <span style="font-size:0.85rem;color:#94a3b8;">{L['cycle_ftx_sub']}</span>
+                    <span class="cycle-desc">{L['cycle_ftx_sub']}</span>
                 </div>
-                <div style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #1f2937;">
+                <div class="cycle-item">
                     <span style="color:#10b981;font-weight:800;">{strong_buy_lbl.upper()} • Şub–Nis 2018 (~$7,000)</span> — <b>{L['score_label']}: 85.0</b><br>
-                    <span style="font-size:0.85rem;color:#94a3b8;">{L['cycle_bear_sub']}</span>
+                    <span class="cycle-desc">{L['cycle_bear_sub']}</span>
                 </div>
-                <div style="padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #1f2937;">
+                <div class="cycle-item">
                     <span style="color:#ef4444;font-weight:800;">{overheated_lbl.upper()} • Eki 2021 (~$61,000)</span> — <b>{L['score_label']}: ~25.0</b><br>
-                    <span style="font-size:0.85rem;color:#94a3b8;">{L['cycle_ath_sub']}</span>
+                    <span class="cycle-desc">{L['cycle_ath_sub']}</span>
                 </div>
                 <div>
                     <span style="color:#ef4444;font-weight:800;">{overheated_lbl.upper()} • Kas 2024 (~$98,000)</span> — <b>{L['score_label']}: 23.3</b><br>
-                    <span style="font-size:0.85rem;color:#94a3b8;">{L['cycle_rally_sub']}</span>
+                    <span class="cycle-desc">{L['cycle_rally_sub']}</span>
                 </div>
             </div>
             """,
@@ -2041,8 +2249,9 @@ def main() -> None:
             thumb_html = ""
             if art.get("image"):
                 thumb_html = (
-                    f'<div class="news-thumb-wrap">'
-                    f'<img src="{art["image"]}" class="news-thumb" alt="Bitcoin News" loading="lazy">'
+                    f'<div class="news-thumb-wrap" style="background-image:url(\'{art["image"]}\');">'
+                    f'<img src="{art["image"]}" class="news-thumb" alt="Bitcoin News" loading="lazy" '
+                    f'style="width:100% !important;height:100% !important;max-width:none !important;object-fit:cover !important;display:block !important;margin:0 !important;">'
                     f"</div>"
                 )
             cards_html.append(
@@ -2120,6 +2329,52 @@ def main() -> None:
         </div>
         """,
         unsafe_allow_html=True,
+    )
+
+    # Scroll-reveal animations (runs in parent document via same-origin iframe)
+    components.html(
+        """
+        <script>
+        (function () {
+            const doc = window.parent.document;
+            if (!doc.getElementById('tbs-reveal-style')) {
+                const s = doc.createElement('style');
+                s.id = 'tbs-reveal-style';
+                s.textContent = `
+                    .tbs-reveal { opacity: 0; transform: translateY(28px) scale(.985);
+                        transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
+                    .tbs-reveal.tbs-in { opacity: 1; transform: none; }
+                    .news-card.tbs-reveal.tbs-in .news-thumb { animation: tbsZoom 1.2s cubic-bezier(.22,1,.36,1) both; }
+                    @keyframes tbsZoom { from { transform: scale(1.12); } to { transform: scale(1); } }
+                    .zone-pill-fill { transform-origin: left; }
+                    .tbs-card.tbs-in .zone-pill-fill { animation: tbsBar 1s cubic-bezier(.22,1,.36,1) both; }
+                    @keyframes tbsBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+                    @media (prefers-reduced-motion: reduce) { .tbs-reveal { opacity:1 !important; transform:none !important; transition:none !important; } }
+                `;
+                doc.head.appendChild(s);
+            }
+            const sel = '.sec-title-row, .why-box, .tbs-card, .news-card, [data-testid="stExpander"], .disclaimer-banner';
+            const io = new window.parent.IntersectionObserver((entries) => {
+                entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('tbs-in'); io.unobserve(e.target); } });
+            }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+            function scan() {
+                doc.querySelectorAll(sel).forEach((el) => {
+                    if (el.dataset.tbsObs) return;
+                    el.dataset.tbsObs = '1';
+                    el.classList.add('tbs-reveal');
+                    if (el.classList.contains('news-card')) {
+                        const i = Array.from(el.parentNode.children).indexOf(el);
+                        el.style.transitionDelay = (i * 0.09) + 's';
+                    }
+                    io.observe(el);
+                });
+            }
+            scan();
+            new window.parent.MutationObserver(scan).observe(doc.body, { childList: true, subtree: true });
+        })();
+        </script>
+        """,
+        height=0,
     )
 
 

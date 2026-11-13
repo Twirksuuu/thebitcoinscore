@@ -15,9 +15,12 @@ Fetches daily historical and live data for all 8 market signals using free APIs:
 from __future__ import annotations
 
 import io
+import json
 import logging
 import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -42,7 +45,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) BitcoinAccumulationScore/1.0"
 }
-REQUEST_TIMEOUT = 20
+REQUEST_TIMEOUT = 6
+_REFRESH_IN_PROGRESS = False
+_NEWS_REFRESH_IN_PROGRESS: set[str] = set()
 
 
 def compute_wilder_rsi(series: pd.Series, length: int = 14) -> pd.Series:
@@ -452,7 +457,7 @@ def fetch_google_trends(keyword: str = "Bitcoin", start_date: str = "2017-01-01"
         return pd.Series(dtype=float, name="google_trends")
 
     try:
-        pytrends = TrendReq(hl="en-US", tz=0, timeout=(10, 25))
+        pytrends = TrendReq(hl="en-US", tz=0, timeout=(3, 5))
         today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         timeframe_full = f"{start_date} {today_str}"
@@ -492,6 +497,75 @@ def fetch_google_trends(keyword: str = "Bitcoin", start_date: str = "2017-01-01"
 # ---------------------------------------------------------------------------
 # MASTER AGGREGATOR: BUILD UNIFIED DAILY DATASET
 # ---------------------------------------------------------------------------
+def _fetch_and_save_master_dataset(
+    start_date: str = "2018-02-01",
+    fred_api_key: Optional[str] = None,
+    cache_path: Optional[str] = "btc_score_cache.csv",
+) -> pd.DataFrame:
+    """Fetches all 7 upstream signals in parallel, merges them, and saves atomically."""
+    global _REFRESH_IN_PROGRESS
+    _REFRESH_IN_PROGRESS = True
+    try:
+        warmup_start = (pd.Timestamp(start_date) - pd.DateOffset(days=300)).strftime("%Y-%m-%d")
+
+        with ThreadPoolExecutor(max_workers=7) as executor:
+            fut_btc = executor.submit(fetch_btc_price_and_technicals, warmup_start)
+            fut_fng = executor.submit(fetch_fear_and_greed)
+            fut_mvrv = executor.submit(fetch_mvrv_ratio, warmup_start)
+            fut_dxy = executor.submit(fetch_dxy, warmup_start, fred_api_key)
+            fut_m2 = executor.submit(fetch_m2_yoy_liquidity, warmup_start, fred_api_key)
+            fut_dom = executor.submit(fetch_btc_dominance, warmup_start)
+            fut_trends = executor.submit(fetch_google_trends, "Bitcoin", start_date)
+
+            btc_df = fut_btc.result()
+            fng_s = fut_fng.result()
+            mvrv_s = fut_mvrv.result()
+            dxy_s = fut_dxy.result()
+            m2_s = fut_m2.result()
+            dom_s = fut_dom.result()
+            trends_s = fut_trends.result()
+
+        master = btc_df.copy()
+        for series in [fng_s, mvrv_s, dxy_s, m2_s, dom_s, trends_s]:
+            if not series.empty:
+                master = master.join(series, how="left")
+            else:
+                master[series.name] = np.nan
+
+        if master["mvrv"].isna().all():
+            sma_1400 = master["close"].rolling(1400, min_periods=200).mean()
+            master["mvrv"] = (master["close"] / (sma_1400 * 0.85)).clip(0.5, 6.0)
+
+        if master["google_trends"].isna().all():
+            logger.warning("Using volatility/momentum retail attention proxy for Google Trends.")
+            ret_30d = master["close"].pct_change(30).abs()
+            pct_rank = ret_30d.expanding(min_periods=90).rank(pct=True)
+            master["google_trends"] = (pct_rank ** 2 * 100.0).fillna(25.0)
+
+        if master["dxy"].isna().all():
+            master["dxy"] = 103.0
+
+        if master["m2_yoy"].isna().all():
+            master["m2_yoy"] = 3.5
+
+        if master["btc_dominance"].isna().all():
+            master["btc_dominance"] = 56.0
+
+        master = master.sort_index().ffill().bfill()
+        master = master.loc[start_date:].copy()
+        master.index.name = "date"
+
+        if cache_path:
+            tmp_path = f"{cache_path}.tmp"
+            master.to_csv(tmp_path)
+            os.replace(tmp_path, cache_path)
+            logger.info("Saved master dataset (%d rows) to %s", len(master), cache_path)
+
+        return master
+    finally:
+        _REFRESH_IN_PROGRESS = False
+
+
 def build_master_dataset(
     start_date: str = "2018-02-01",
     fred_api_key: Optional[str] = None,
@@ -501,71 +575,35 @@ def build_master_dataset(
 ) -> pd.DataFrame:
     """
     Fetches and merges all 8 signals + BTC Price onto a clean daily DatetimeIndex.
-    Uses local CSV caching if `cache_path` is provided and fresh.
-    Auto-invalidates cache if cache is older than 1 hour or does not have today's UTC data.
+    Uses Stale-While-Revalidate on local CSV cache so initial page loads are instant,
+    refreshing stale caches asynchronously in a background daemon thread.
     """
     today_utc = datetime.now(timezone.utc).date()
     if not force_refresh and cache_path and os.path.exists(cache_path):
-        mtime = datetime.fromtimestamp(os.path.getmtime(cache_path), tz=timezone.utc)
-        if datetime.now(timezone.utc) - mtime < timedelta(hours=cache_ttl_hours):
-            try:
-                cached_df = pd.read_csv(cache_path, index_col="date", parse_dates=["date"])
-                if not cached_df.empty and cached_df.index.max().date() >= (today_utc - timedelta(days=1)):
+        try:
+            cached_df = pd.read_csv(cache_path, index_col="date", parse_dates=["date"])
+            if not cached_df.empty:
+                mtime = datetime.fromtimestamp(os.path.getmtime(cache_path), tz=timezone.utc)
+                is_old = (datetime.now(timezone.utc) - mtime >= timedelta(hours=cache_ttl_hours))
+                is_stale_day = cached_df.index.max().date() < (today_utc - timedelta(days=1))
+                if (is_old or is_stale_day) and not _REFRESH_IN_PROGRESS:
+                    logger.info("Returning cached dataset immediately; refreshing in background...")
+                    threading.Thread(
+                        target=_fetch_and_save_master_dataset,
+                        args=(start_date, fred_api_key, cache_path),
+                        daemon=True,
+                    ).start()
+                else:
                     logger.info("Loading cached dataset from %s", cache_path)
-                    return cached_df
-            except Exception as e:
-                logger.warning("Error reading cache: %s. Fetching fresh data.", e)
+                return cached_df
+        except Exception as e:
+            logger.warning("Error reading cache: %s. Fetching fresh data.", e)
 
-    warmup_start = (pd.Timestamp(start_date) - pd.DateOffset(days=300)).strftime("%Y-%m-%d")
-
-    btc_df = fetch_btc_price_and_technicals(start_date=warmup_start)
-    fng_s = fetch_fear_and_greed()
-    mvrv_s = fetch_mvrv_ratio(start_date=warmup_start)
-    dxy_s = fetch_dxy(start_date=warmup_start, fred_api_key=fred_api_key)
-    m2_s = fetch_m2_yoy_liquidity(start_date=warmup_start, fred_api_key=fred_api_key)
-    dom_s = fetch_btc_dominance(start_date=warmup_start)
-    trends_s = fetch_google_trends(start_date=start_date)
-
-    master = btc_df.copy()
-    for series in [fng_s, mvrv_s, dxy_s, m2_s, dom_s, trends_s]:
-        if not series.empty:
-            master = master.join(series, how="left")
-        else:
-            master[series.name] = np.nan
-
-    # Fallback proxy for MVRV if CoinMetrics was unreachable
-    if master["mvrv"].isna().all():
-        sma_1400 = master["close"].rolling(1400, min_periods=200).mean()
-        master["mvrv"] = (master["close"] / (sma_1400 * 0.85)).clip(0.5, 6.0)
-
-    # Fallback proxy for Google Trends if pytrends is rate-limited (429) by Google
-    if master["google_trends"].isna().all():
-        logger.warning("Using volatility/momentum retail attention proxy for Google Trends.")
-        ret_30d = master["close"].pct_change(30).abs()
-        pct_rank = ret_30d.expanding(min_periods=90).rank(pct=True)
-        master["google_trends"] = (pct_rank ** 2 * 100.0).fillna(25.0)
-
-    # Fallback for DXY if both Yahoo and FRED failed
-    if master["dxy"].isna().all():
-        master["dxy"] = 103.0
-
-    # Fallback for M2 YoY if FRED failed
-    if master["m2_yoy"].isna().all():
-        master["m2_yoy"] = 3.5
-
-    # Fallback for BTC Dominance if CoinGecko + CoinMetrics failed
-    if master["btc_dominance"].isna().all():
-        master["btc_dominance"] = 56.0
-
-    master = master.sort_index().ffill().bfill()
-    master = master.loc[start_date:].copy()
-    master.index.name = "date"
-
-    if cache_path:
-        master.to_csv(cache_path)
-        logger.info("Saved master dataset (%d rows) to %s", len(master), cache_path)
-
-    return master
+    return _fetch_and_save_master_dataset(
+        start_date=start_date,
+        fred_api_key=fred_api_key,
+        cache_path=cache_path,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -593,128 +631,173 @@ def translate_en_to_tr_free(text: str) -> str:
         return text
 
 
-def fetch_bitcoin_magazine_news(limit: int = 5, target_lang: str = "TR") -> list[dict[str, str]]:
-    """
-    Fetches the latest `limit` news articles from https://bitcoinmagazine.com/feed.
-    Uses curl_cffi browser impersonation to cleanly pass Cloudflare protection,
-    with standard requests and curated live fallback if network is restricted.
-    Optionally translates headlines and summaries to Turkish (target_lang="TR").
-    """
+_NEWS_CACHE_FILE = os.path.join(os.path.dirname(__file__), "btc_news_cache.json")
+
+
+def _load_news_cache() -> dict:
+    if os.path.exists(_NEWS_CACHE_FILE):
+        try:
+            with open(_NEWS_CACHE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            pass
+    return {}
+
+
+def _save_news_cache_entry(target_lang: str, articles: list[dict[str, str]]) -> None:
+    try:
+        cache = _load_news_cache()
+        cache[target_lang] = {"ts": time.time(), "articles": articles}
+        tmp_path = f"{_NEWS_CACHE_FILE}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+        os.replace(tmp_path, _NEWS_CACHE_FILE)
+    except Exception as exc:
+        logger.warning("Failed saving news cache: %s", exc)
+
+
+def _fetch_live_bitcoin_news(limit: int = 5, target_lang: str = "TR") -> list[dict[str, str]]:
+    """Fetches live RSS articles from Bitcoin Magazine and caches them."""
     import html
     import re
     import xml.etree.ElementTree as ET
     from email.utils import parsedate_to_datetime
 
-    rss_url = "https://bitcoinmagazine.com/feed"
-    xml_text = ""
-
+    _NEWS_REFRESH_IN_PROGRESS.add(target_lang)
     try:
-        from curl_cffi import requests as creq
+        rss_url = "https://bitcoinmagazine.com/feed"
+        xml_text = ""
 
-        resp = creq.get(rss_url, impersonate="chrome", timeout=12)
-        if resp.status_code == 200 and resp.text:
-            xml_text = resp.text
-    except Exception as exc:
-        logger.warning("curl_cffi Bitcoin Magazine fetch warning: %s", exc)
-
-    if not xml_text:
         try:
-            resp = requests.get(
-                rss_url,
-                headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                    ),
-                    "Accept": "application/rss+xml, application/xml, text/xml, */*",
-                },
-                timeout=12,
-            )
+            from curl_cffi import requests as creq
+
+            resp = creq.get(rss_url, impersonate="chrome", timeout=5)
             if resp.status_code == 200 and resp.text:
                 xml_text = resp.text
         except Exception as exc:
-            logger.warning("Standard requests Bitcoin Magazine fetch warning: %s", exc)
+            logger.warning("curl_cffi Bitcoin Magazine fetch warning: %s", exc)
 
-    articles: list[dict[str, str]] = []
-    if xml_text:
-        try:
-            root = ET.fromstring(xml_text)
-            items = root.findall("./channel/item")
-            for item in items[:limit]:
-                title = html.unescape((item.findtext("title") or "").strip())
-                link = (item.findtext("link") or "https://bitcoinmagazine.com/").strip()
-                pub_raw = (item.findtext("pubDate") or "").strip()
-                author = html.unescape(
-                    (item.findtext("{http://purl.org/dc/elements/1.1/}creator") or "Bitcoin Magazine").strip()
+        if not xml_text:
+            try:
+                resp = requests.get(
+                    rss_url,
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                        ),
+                        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                    },
+                    timeout=5,
                 )
+                if resp.status_code == 200 and resp.text:
+                    xml_text = resp.text
+            except Exception as exc:
+                logger.warning("Standard requests Bitcoin Magazine fetch warning: %s", exc)
 
-                # Format pubDate nicely
-                pub_formatted = pub_raw
-                try:
-                    dt = parsedate_to_datetime(pub_raw)
-                    # Translate month if TR
-                    months_tr = {
-                        "Jan": "Oca", "Feb": "Şub", "Mar": "Mar", "Apr": "Nis", "May": "May", "Jun": "Haz",
-                        "Jul": "Tem", "Aug": "Ağu", "Sep": "Eyl", "Oct": "Eki", "Nov": "Kas", "Dec": "Ara"
-                    }
-                    m_en = dt.strftime("%b")
-                    m_tr = months_tr.get(m_en, m_en) if target_lang == "TR" else m_en
-                    pub_formatted = f"{dt.day} {m_tr} {dt.year} • {dt.strftime('%H:%M')} UTC"
-                except Exception:
-                    pass
+        articles: list[dict[str, str]] = []
+        if xml_text:
+            try:
+                root = ET.fromstring(xml_text)
+                items = root.findall("./channel/item")
+                for item in items[:limit]:
+                    title = html.unescape((item.findtext("title") or "").strip())
+                    link = (item.findtext("link") or "https://bitcoinmagazine.com/").strip()
+                    pub_raw = (item.findtext("pubDate") or "").strip()
+                    author = html.unescape(
+                        (item.findtext("{http://purl.org/dc/elements/1.1/}creator") or "Bitcoin Magazine").strip()
+                    )
 
-                # Extract category
-                cats = [
-                    c.text.strip()
-                    for c in item.findall("category")
-                    if c.text and c.text.strip().upper() != "NEWS"
-                ]
-                category = cats[0].upper() if cats else "BITCOIN"
+                    pub_formatted = pub_raw
+                    try:
+                        dt = parsedate_to_datetime(pub_raw)
+                        months_tr = {
+                            "Jan": "Oca", "Feb": "Şub", "Mar": "Mar", "Apr": "Nis", "May": "May", "Jun": "Haz",
+                            "Jul": "Tem", "Aug": "Ağu", "Sep": "Eyl", "Oct": "Eki", "Nov": "Kas", "Dec": "Ara"
+                        }
+                        m_en = dt.strftime("%b")
+                        m_tr = months_tr.get(m_en, m_en) if target_lang == "TR" else m_en
+                        pub_formatted = f"{dt.day} {m_tr} {dt.year} • {dt.strftime('%H:%M')} UTC"
+                    except Exception:
+                        pass
 
-                # Extract image & clean summary from description
-                desc_html = item.findtext("description") or ""
-                img_match = re.search(r'<img[^>]+src="([^"]+)"', desc_html)
-                img_url = img_match.group(1) if img_match else ""
+                    cats = [
+                        c.text.strip()
+                        for c in item.findall("category")
+                        if c.text and c.text.strip().upper() != "NEWS"
+                    ]
+                    category = cats[0].upper() if cats else "BITCOIN"
 
-                # Extract paragraphs excluding boilerplate
-                paragraphs = re.findall(r"<p>(.*?)</p>", desc_html, re.S)
-                summary = ""
-                for p in paragraphs:
-                    clean_p = html.unescape(re.sub(r"<[^>]+>", "", p)).strip()
-                    if clean_p and "Bitcoin Magazine" not in clean_p and len(clean_p) > 25:
-                        summary = clean_p
-                        break
-                if not summary:
-                    raw_clean = html.unescape(re.sub(r"<[^>]+>", " ", desc_html)).strip()
-                    summary = re.sub(r"\s+", " ", raw_clean)[:180] + "..."
-                elif len(summary) > 190:
-                    summary = summary[:187].rstrip() + "..."
+                    desc_html = item.findtext("description") or ""
+                    img_match = re.search(r'<img[^>]+src="([^"]+)"', desc_html)
+                    img_url = img_match.group(1) if img_match else ""
 
-                articles.append(
-                    {
-                        "title": title,
-                        "link": link,
-                        "published": pub_formatted,
-                        "author": author,
-                        "category": category,
-                        "summary": summary,
-                        "image": img_url,
-                    }
-                )
-            if target_lang == "TR" and articles:
-                from concurrent.futures import ThreadPoolExecutor
+                    paragraphs = re.findall(r"<p>(.*?)</p>", desc_html, re.S)
+                    summary = ""
+                    for p in paragraphs:
+                        clean_p = html.unescape(re.sub(r"<[^>]+>", "", p)).strip()
+                        if clean_p and "Bitcoin Magazine" not in clean_p and len(clean_p) > 25:
+                            summary = clean_p
+                            break
+                    if not summary:
+                        raw_clean = html.unescape(re.sub(r"<[^>]+>", " ", desc_html)).strip()
+                        summary = re.sub(r"\s+", " ", raw_clean)[:180] + "..."
+                    elif len(summary) > 190:
+                        summary = summary[:187].rstrip() + "..."
 
-                with ThreadPoolExecutor(max_workers=10) as executor:
-                    titles_fut = [executor.submit(translate_en_to_tr_free, a["title"]) for a in articles]
-                    sums_fut = [executor.submit(translate_en_to_tr_free, a["summary"]) for a in articles]
-                    for a, tf, sf in zip(articles, titles_fut, sums_fut):
-                        a["title"] = tf.result()
-                        a["summary"] = sf.result()
-        except Exception as parse_exc:
-            logger.warning("Failed to parse Bitcoin Magazine RSS XML: %s", parse_exc)
+                    articles.append(
+                        {
+                            "title": title,
+                            "link": link,
+                            "published": pub_formatted,
+                            "author": author,
+                            "category": category,
+                            "summary": summary,
+                            "image": img_url,
+                        }
+                    )
+                if target_lang == "TR" and articles:
+                    with ThreadPoolExecutor(max_workers=10) as executor:
+                        titles_fut = [executor.submit(translate_en_to_tr_free, a["title"]) for a in articles]
+                        sums_fut = [executor.submit(translate_en_to_tr_free, a["summary"]) for a in articles]
+                        for a, tf, sf in zip(articles, titles_fut, sums_fut):
+                            a["title"] = tf.result()
+                            a["summary"] = sf.result()
+            except Exception as parse_exc:
+                logger.warning("Failed to parse Bitcoin Magazine RSS XML: %s", parse_exc)
 
-    if articles:
-        return articles[:limit]
+        if articles:
+            res = articles[:limit]
+            _save_news_cache_entry(target_lang, res)
+            return res
+        return []
+    finally:
+        _NEWS_REFRESH_IN_PROGRESS.discard(target_lang)
+
+
+def fetch_bitcoin_magazine_news(limit: int = 5, target_lang: str = "TR") -> list[dict[str, str]]:
+    """
+    Fetches the latest `limit` news articles from https://bitcoinmagazine.com/feed.
+    Uses instant JSON cache with Stale-While-Revalidate (background refresh after 15 min)
+    so the UI renders immediately without waiting for network calls.
+    """
+    cache = _load_news_cache()
+    entry = cache.get(target_lang)
+    if entry and isinstance(entry.get("articles"), list) and entry["articles"]:
+        age = time.time() - float(entry.get("ts", 0))
+        if age > 900 and target_lang not in _NEWS_REFRESH_IN_PROGRESS:
+            threading.Thread(
+                target=_fetch_live_bitcoin_news,
+                args=(limit, target_lang),
+                daemon=True,
+            ).start()
+        return entry["articles"][:limit]
+
+    live_articles = _fetch_live_bitcoin_news(limit=limit, target_lang=target_lang)
+    if live_articles:
+        return live_articles[:limit]
 
     # Fallback if RSS endpoint is temporarily unreachable
     if target_lang == "TR":
