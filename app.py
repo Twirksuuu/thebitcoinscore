@@ -1519,7 +1519,7 @@ def render_hero_and_signals_component(
                         {lang_dict['btc_price_label']} <span class="live-pulse"></span>
                     </div>
                     <div class="price-row">
-                        <span class="price-val" id="liveBtcPrice">$0</span>
+                        <span class="price-val" id="liveBtcPrice">${btc_price:,.0f}</span>
                         <span class="price-chg" id="liveBtcChg">{pct_sign}{pct_1d:.2f}%</span>
                     </div>
                 </div>
@@ -1598,32 +1598,6 @@ def render_hero_and_signals_component(
             let selectedIdx = 0;
 
             let currentBtcPrice = {btc_price};
-            let priceAnimated = false;
-
-            function animatePriceTo(targetPrice, duration = 1200) {{
-                if (!livePriceEl) return;
-                const startPrice = priceAnimated ? currentBtcPrice : 0;
-                priceAnimated = true;
-                const t0 = performance.now();
-                function step(t) {{
-                    const p = Math.min((t - t0) / duration, 1);
-                    // Smooth cubic-out easing
-                    const e = 1 - Math.pow(1 - p, 3);
-                    const currentVal = Math.round(startPrice + (targetPrice - startPrice) * e);
-                    livePriceEl.textContent = '$' + currentVal.toLocaleString('en-US');
-                    if (p < 1) {{
-                        requestAnimationFrame(step);
-                    }} else {{
-                        livePriceEl.textContent = '$' + Math.round(targetPrice).toLocaleString('en-US');
-                        livePriceEl.classList.add('price-flash');
-                        setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
-                    }}
-                }}
-                requestAnimationFrame(step);
-            }}
-
-            // Initial smooth roll-up from 0 towards initial dataset price
-            animatePriceTo({btc_price}, 1100);
 
             // Score count-up animation
             (function() {{
@@ -1665,59 +1639,52 @@ def render_hero_and_signals_component(
             dcaInput.addEventListener('input', updateDcaCalc);
             updateDcaCalc();
 
-            // Live Price Auto-Updater with immediate start & multi-endpoint fallback
+            // 5-second Live Price Auto-Updater with smooth flash (no visible countdown timer)
             async function fetchLiveBtcPrice() {{
-                const endpoints = [
-                    'https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT',
-                    'https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT',
-                    'https://api.binance.us/api/v3/ticker/24hr?symbol=BTCUSDT',
-                    'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true'
-                ];
-
-                for (const url of endpoints) {{
-                    try {{
-                        const res = await fetch(url, {{ cache: 'no-store' }});
-                        if (!res.ok) continue;
-                        const data = await res.json();
-                        let newPrice = null;
-                        let priceChg = null;
-
-                        if (data.lastPrice) {{
-                            newPrice = parseFloat(data.lastPrice);
-                            priceChg = parseFloat(data.priceChangePercent);
-                        }} else if (data.bitcoin && data.bitcoin.usd) {{
-                            newPrice = parseFloat(data.bitcoin.usd);
-                            priceChg = parseFloat(data.bitcoin.usd_24h_change);
+                try {{
+                    const res = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const newPrice = parseFloat(data.lastPrice);
+                    const priceChg = parseFloat(data.priceChangePercent);
+                    if (newPrice && !isNaN(newPrice)) {{
+                        currentBtcPrice = newPrice;
+                        if (livePriceEl) {{
+                            livePriceEl.textContent = '$' + Math.round(newPrice).toLocaleString('en-US');
+                            livePriceEl.classList.add('price-flash');
+                            setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
                         }}
-
-                        if (newPrice && !isNaN(newPrice)) {{
-                            const prevPrice = currentBtcPrice;
-                            currentBtcPrice = newPrice;
+                        if (liveChgEl) {{
+                            const sign = priceChg >= 0 ? '+' : '';
+                            liveChgEl.textContent = sign + priceChg.toFixed(2) + '%';
+                            liveChgEl.style.color = priceChg >= 0 ? '#10b981' : '#ef4444';
+                        }}
+                        updateDcaCalc();
+                    }}
+                }} catch (e) {{
+                    // Fallback to CoinGecko if Binance blocked
+                    try {{
+                        const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true');
+                        if (cgRes.ok) {{
+                            const cgData = await cgRes.json();
+                            const p = cgData.bitcoin.usd;
+                            const chg = cgData.bitcoin.usd_24h_change;
+                            currentBtcPrice = p;
                             if (livePriceEl) {{
-                                if (!priceAnimated) {{
-                                    animatePriceTo(newPrice, 1100);
-                                }} else if (Math.abs(newPrice - prevPrice) > 5) {{
-                                    animatePriceTo(newPrice, 600);
-                                }} else {{
-                                    livePriceEl.textContent = '$' + Math.round(newPrice).toLocaleString('en-US');
-                                }}
+                                livePriceEl.textContent = '$' + Math.round(p).toLocaleString('en-US');
+                                livePriceEl.classList.add('price-flash');
+                                setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
                             }}
-                            if (liveChgEl && priceChg !== null && !isNaN(priceChg)) {{
-                                const sign = priceChg >= 0 ? '+' : '';
-                                liveChgEl.textContent = sign + priceChg.toFixed(2) + '%';
-                                liveChgEl.style.color = priceChg >= 0 ? '#10b981' : '#ef4444';
+                            if (liveChgEl) {{
+                                const sign = chg >= 0 ? '+' : '';
+                                liveChgEl.textContent = sign + chg.toFixed(2) + '%';
+                                liveChgEl.style.color = chg >= 0 ? '#10b981' : '#ef4444';
                             }}
                             updateDcaCalc();
-                            return; // Success, break loop
                         }}
-                    }} catch (e) {{
-                        // Continue to next endpoint fallback
-                    }}
+                    }} catch (err) {{}}
                 }}
             }}
-
-            // Call immediately on page load so mobile/desktop updates instantly
-            fetchLiveBtcPrice();
 
             // Fetch live price every 5 seconds
             setInterval(fetchLiveBtcPrice, 5000);
