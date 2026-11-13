@@ -1641,21 +1641,20 @@ def render_hero_and_signals_component(
 
             
             let hasInitialPriceAnimated = false;
-            function animateBtcPriceCountUp() {{
+                        function animateBtcPriceCountUp(targetPrice) {{
                 if (!livePriceEl) return;
-                const dur = 260;
-                const t0 = performance.now();
+                const target = Math.round(targetPrice);
+                const dur = 380;
+                const t0 = performance.now() - 20;
                 function stepPrice(t) {{
-                    const target = Math.round(currentBtcPrice);
-                    const p = Math.min(Math.max((t - t0) / dur, 0.08), 1);
+                    const p = Math.min(Math.max((t - t0) / dur, 0.04), 1);
                     const e = 1 - Math.pow(1 - p, 3);
                     const val = Math.max(1, Math.round(target * e));
                     livePriceEl.textContent = '$' + val.toLocaleString('en-US');
                     if (p < 1) {{
                         requestAnimationFrame(stepPrice);
                     }} else {{
-                        hasInitialPriceAnimated = true;
-                        livePriceEl.textContent = '$' + Math.round(currentBtcPrice).toLocaleString('en-US');
+                        livePriceEl.textContent = '$' + target.toLocaleString('en-US');
                     }}
                 }}
                 requestAnimationFrame(stepPrice);
@@ -1664,7 +1663,10 @@ def render_hero_and_signals_component(
             function applyLivePrice(newPrice, priceChg) {{
                 if (!newPrice || isNaN(newPrice)) return;
                 currentBtcPrice = newPrice;
-                if (hasInitialPriceAnimated && livePriceEl) {{
+                if (!hasInitialPriceAnimated) {{
+                    hasInitialPriceAnimated = true;
+                    animateBtcPriceCountUp(newPrice);
+                }} else if (livePriceEl) {{
                     livePriceEl.textContent = '$' + Math.round(newPrice).toLocaleString('en-US');
                     livePriceEl.classList.add('price-flash');
                     setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
@@ -1704,7 +1706,7 @@ def render_hero_and_signals_component(
                 }} catch (e) {{}}
             }}
 
-            animateBtcPriceCountUp();
+            
             fetchLiveBtcPrice();
             setInterval(fetchLiveBtcPrice, 5000);
             function buildSparkSvg(vals, color, width, height, fillArea) {{
