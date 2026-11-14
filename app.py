@@ -1805,15 +1805,22 @@ def render_hero_and_signals_component(
             renderIndicators();
 
             function syncIframeHeight() {{
+                const h = Math.ceil(document.body.scrollHeight || document.documentElement.scrollHeight) + 16;
                 try {{
-                    const h = Math.ceil(document.body.scrollHeight || document.documentElement.scrollHeight);
+                    window.parent.postMessage({{
+                        isStreamlitMessage: true,
+                        type: "streamlit:setFrameHeight",
+                        height: h
+                    }}, "*");
+                }} catch (e) {{}}
+                try {{
                     if (window.frameElement) {{
-                        window.frameElement.style.height = (h + 8) + 'px';
+                        window.frameElement.style.height = h + 'px';
                     }} else if (window.parent) {{
                         const iframes = window.parent.document.querySelectorAll('iframe');
                         for (let ifr of iframes) {{
                             if (ifr.contentWindow === window) {{
-                                ifr.style.height = (h + 8) + 'px';
+                                ifr.style.height = h + 'px';
                                 break;
                             }}
                         }}
