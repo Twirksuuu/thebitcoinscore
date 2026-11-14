@@ -25,25 +25,27 @@ Most retail market participants buy aggressively when Bitcoin is trading at all-
 
 | Indicator | Type | Weight | Description |
 | :--- | :--- | :---: | :--- |
-| **MVRV Z-Score** | On-Chain | 20% | Market Value vs. Realized Value of all coins on-chain. |
-| **200-Day EMA Ratio** | Technical | 15% | Price distance above/below institutional 200-day trend. |
-| **RSI-14 (Wilder)** | Technical | 10% | 14-day momentum smoothed with Wilder's original formula. |
-| **Crypto Fear & Greed** | Sentiment | 15% | Multi-source sentiment index quantifying market panic/greed. |
+| **MVRV Z-Score** | On-Chain | 22% | Market Value vs. Realized Value of all coins on-chain. |
+| **200-Day EMA Ratio** | Technical | 18% | Price distance above/below institutional 200-day trend. |
+| **RSI-14 (Wilder)** | Technical | 14% | 14-day momentum smoothed with Wilder's original formula. |
+| **Crypto Fear & Greed** | Sentiment | 14% | Multi-source sentiment index quantifying market panic/greed. |
 | **US M2 Money Supply YoY** | Macro | 10% | Annual change in Federal Reserve M2 liquidity. |
 | **US Dollar Index (DXY)** | Macro | 10% | Global reserve fiat currency strength and risk appetite. |
-| **Google Trends (Bitcoin)** | Public Interest | 10% | Worldwide search interest measuring retail curiosity. |
-| **Bitcoin Dominance** | Market Structure | 10% | BTC market cap share relative to the total crypto market. |
+| **Google Trends (Bitcoin)** | Public Interest | 8% | Worldwide search interest measuring retail curiosity. |
+| **Bitcoin Dominance** | Market Structure | 4% | BTC market cap share relative to the total crypto market. |
 
 ---
 
 ## ✨ Features
 
-- **Real-Time BTC Price (5s):** Live price feeds via Binance & CoinGecko with smooth highlight transitions.
+- **Real-Time BTC Price (2s Updates):** Ultra-fast live price updates via Binance & CoinGecko with vivid orange flash animations (`price-flash`).
+- **Live 5-Second Indicator Engine:** Real-time recalculation of live-capable indicators (EMA200, RSI14, MVRV) from live BTC price ticks alongside live polling for BTC Dominance and Fear & Greed.
+- **Interactive 30-Day Indicator Modals:** Click any of the 8 indicator cards to open a modal featuring methodology explanations and an interactive 30-day SVG trajectory chart with live cursor/touch scrubbing, vertical guide lines, and date-value readouts.
 - **Interactive Smart DCA Calculator:** Adjust daily dollar allocation and calculate suggested Bitcoin sats in real time based on current score regime.
 - **Interactive Dual-Axis Chart:** Plotly chart displaying the historical score trajectory alongside BTC price (with Logarithmic scale and 200d EMA toggle).
-- **Live Bitcoin News:** Automated news feed curating the latest articles from [Bitcoin Magazine](https://bitcoinmagazine.com/), translated into Turkish.
+- **Live Bitcoin News:** Automated news feed curating the latest articles from [Bitcoin Magazine](https://bitcoinmagazine.com/).
+- **Dual Themes (Dark & Light Mode):** High-contrast, polished styling with smooth toggle between Dark (`🌙`) and Light (`☀️`) modes.
 - **Bilingual Interface:** Full seamless support for both English (EN) and Turkish (TR).
-- **Dark Glassmorphic UI:** Modern responsive dashboard styled with custom CSS and typography.
 
 ---
 
