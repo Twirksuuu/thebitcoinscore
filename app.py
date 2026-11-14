@@ -1273,6 +1273,10 @@ def render_hero_and_signals_component(
             cursor: pointer;
             transition: all 0.28s cubic-bezier(0.22, 1, 0.36, 1);
             position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
         }}
         .ind-card:hover, .ind-card.selected {{
             transform: translateY(-2px);
@@ -1325,13 +1329,18 @@ def render_hero_and_signals_component(
         .ind-val-row {{
             display: flex;
             justify-content: space-between;
-            align-items: flex-end;
+            align-items: center;
+            margin: auto 0;
         }}
         .ind-val {{
             font-family: 'JetBrains Mono', monospace;
             font-size: 1.22rem;
             font-weight: 800;
             transition: color 0.3s ease, text-shadow 0.3s ease;
+        }}
+        #ind-val-fng {{
+            font-size: 0.96rem;
+            line-height: 1.22;
         }}
         .ind-val.ind-flash {{
             color: #f7931a !important;
@@ -1726,7 +1735,7 @@ def render_hero_and_signals_component(
                     <div class="gauge-segments">
                         <div class="g-seg" style="background:linear-gradient(90deg, #ef4444, #dc2626);"></div>
                         <div class="g-seg" style="background:linear-gradient(90deg, #ea580c, #d97706);"></div>
-                        <div class="g-seg" style="background:linear-gradient(90deg, #d97706, #64748b);"></div>
+                        <div class="g-seg" style="background:#64748b;"></div>
                         <div class="g-seg" style="background:linear-gradient(90deg, #059669, #10b981);"></div>
                         <div class="g-seg" style="background:linear-gradient(90deg, #10b981, #00f59b);"></div>
                     </div>
@@ -2499,11 +2508,11 @@ def main() -> None:
             </div>
             <div class="why-item">
                 <span class="why-dot" style="background:{dxy_color};box-shadow:0 0 8px {dxy_color};"></span>
-                <span><b>{L['why_dxy_lbl']}:</b> DXY {dxy_word} (90g: <b>{abs(dxy_90d):.2f}%</b>, Seviye: <b>{float(latest['dxy']):.2f}</b>) — {dxy_effect}.</span>
+                <span><b>{L['why_dxy_lbl']}:</b> DXY {dxy_word} ({'90g' if lang == 'TR' else '90d'}: <b>{abs(dxy_90d):.2f}%</b>, {'Seviye' if lang == 'TR' else 'Level'}: <b>{float(latest['dxy']):.2f}</b>) — {dxy_effect}.</span>
             </div>
             <div class="why-item">
                 <span class="why-dot" style="background:#10b981;box-shadow:0 0 8px #10b981;"></span>
-                <span><b>{L['why_sent_lbl']}:</b> Korku & Açgözlülük: <b>{int(latest['fng'])} ({_fng_label(float(latest['fng']), lang)})</b>, {L['why_sent_txt']} <b>%{gt_pct:.0f}</b> {L['why_sent_sub']}</span>
+                <span><b>{L['why_sent_lbl']}:</b> {'Korku & Açgözlülük' if lang == 'TR' else 'Fear & Greed'}: <b>{int(latest['fng'])} ({_fng_label(float(latest['fng']), lang)})</b>, {L['why_sent_txt']} <b>{f'%{gt_pct:.0f}' if lang == 'TR' else f'{gt_pct:.0f}%'}</b> {L['why_sent_sub']}</span>
             </div>
         </div>
         """,
@@ -2607,19 +2616,19 @@ def main() -> None:
                     {L['cycle_title']}
                 </div>
                 <div class="cycle-item">
-                    <span style="color:#10b981;font-weight:800;">{strong_buy_lbl.upper()} • Ara 2022 (~$16,600)</span> — <b>{L['score_label']}: 84.8</b><br>
+                    <span style="color:#10b981;font-weight:800;">{strong_buy_lbl.upper()} • {'Ara 2022' if lang == 'TR' else 'Dec 2022'} (~$16,600)</span> — <b>{L['score_label']}: 84.8</b><br>
                     <span class="cycle-desc">{L['cycle_ftx_sub']}</span>
                 </div>
                 <div class="cycle-item">
-                    <span style="color:#10b981;font-weight:800;">{strong_buy_lbl.upper()} • Şub–Nis 2018 (~$7,000)</span> — <b>{L['score_label']}: 85.0</b><br>
+                    <span style="color:#10b981;font-weight:800;">{strong_buy_lbl.upper()} • {'Şub–Nis 2018' if lang == 'TR' else 'Feb–Apr 2018'} (~$7,000)</span> — <b>{L['score_label']}: 85.0</b><br>
                     <span class="cycle-desc">{L['cycle_bear_sub']}</span>
                 </div>
                 <div class="cycle-item">
-                    <span style="color:#ef4444;font-weight:800;">{overheated_lbl.upper()} • Eki 2021 (~$61,000)</span> — <b>{L['score_label']}: ~25.0</b><br>
+                    <span style="color:#ef4444;font-weight:800;">{overheated_lbl.upper()} • {'Eki 2021' if lang == 'TR' else 'Oct 2021'} (~$61,000)</span> — <b>{L['score_label']}: ~25.0</b><br>
                     <span class="cycle-desc">{L['cycle_ath_sub']}</span>
                 </div>
                 <div>
-                    <span style="color:#ef4444;font-weight:800;">{overheated_lbl.upper()} • Kas 2024 (~$98,000)</span> — <b>{L['score_label']}: 23.3</b><br>
+                    <span style="color:#ef4444;font-weight:800;">{overheated_lbl.upper()} • {'Kas 2024' if lang == 'TR' else 'Nov 2024'} (~$98,000)</span> — <b>{L['score_label']}: 23.3</b><br>
                     <span class="cycle-desc">{L['cycle_rally_sub']}</span>
                 </div>
             </div>
@@ -2744,20 +2753,53 @@ def main() -> None:
                 doc.head.appendChild(s);
             }
             s.textContent = `
-                .tbs-reveal { opacity: 1 !important; transform: none !important; }
-                .tbs-reveal.tbs-in { animation: tbsFadeUp .55s cubic-bezier(.22,1,.36,1) both; }
-                @keyframes tbsFadeUp { from { opacity: 0.01; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+                .tbs-reveal:not(.tbs-in) { opacity: 0; transform: translateY(26px) scale(.985); }
+                .tbs-reveal { transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
+                .tbs-reveal.tbs-in { opacity: 1; transform: none; }
                 .news-card.tbs-reveal.tbs-in .news-thumb { animation: tbsZoom 1.1s cubic-bezier(.22,1,.36,1) both; }
                 @keyframes tbsZoom { from { transform: scale(1.08); } to { transform: scale(1); } }
                 .zone-pill-fill { transform-origin: left; }
                 .tbs-card.tbs-in .zone-pill-fill { animation: tbsBar .9s cubic-bezier(.22,1,.36,1) both; }
                 @keyframes tbsBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-                @media (prefers-reduced-motion: reduce) { .tbs-reveal, .tbs-reveal.tbs-in { opacity:1 !important; transform:none !important; animation:none !important; } }
+                @media (prefers-reduced-motion: reduce) { .tbs-reveal { opacity:1 !important; transform:none !important; transition:none !important; } }
             `;
+            const W = window.parent;
             const sel = '.sec-title-row, .why-box, .tbs-card, .news-card, [data-testid="stExpander"], .disclaimer-banner';
-            doc.querySelectorAll(sel).forEach((el) => {
-                el.classList.add('tbs-reveal', 'tbs-in');
-            });
+            // Disconnect observers left over from previous (unmounted) iframes so nothing stays hidden
+            try { if (W.__tbsIO) W.__tbsIO.disconnect(); } catch (e) {}
+            try { if (W.__tbsMO) W.__tbsMO.disconnect(); } catch (e) {}
+            const reveal = (el) => el.classList.add('tbs-in');
+            const io = new W.IntersectionObserver((entries) => {
+                entries.forEach(e => { if (e.isIntersecting) { reveal(e.target); io.unobserve(e.target); } });
+            }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
+            W.__tbsIO = io;
+            function scan() {
+                const vh = W.innerHeight || 800;
+                doc.querySelectorAll(sel).forEach((el) => {
+                    if (el.classList.contains('tbs-in')) return;
+                    const r = el.getBoundingClientRect();
+                    if (!el.classList.contains('tbs-reveal')) {
+                        if (r.top < vh && r.bottom > 0) { el.classList.add('tbs-reveal', 'tbs-in'); return; }
+                        el.classList.add('tbs-reveal');
+                        if (el.classList.contains('news-card')) {
+                            const i = Array.from(el.parentNode.children).indexOf(el);
+                            el.style.transitionDelay = (i * 0.08) + 's';
+                        }
+                    }
+                    io.observe(el);
+                });
+            }
+            scan();
+            const mo = new W.MutationObserver(() => scan());
+            mo.observe(doc.body, { childList: true, subtree: true });
+            W.__tbsMO = mo;
+            // Safety net: anything still hidden after 4s but already scrolled past/visible gets revealed
+            setTimeout(() => {
+                const vh = W.innerHeight || 800;
+                doc.querySelectorAll('.tbs-reveal:not(.tbs-in)').forEach(el => {
+                    if (el.getBoundingClientRect().top < vh) reveal(el);
+                });
+            }, 4000);
         })();
         </script>
         """,
