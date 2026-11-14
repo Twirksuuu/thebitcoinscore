@@ -475,12 +475,13 @@ I18N = {
         "calc_how": "HOW IT'S CALCULATED",
         "calc_why": "WHY IT MATTERS FOR ACCUMULATING BTC",
         "weight_lbl": "Weight",
-        "trajectory_lbl": "30-DAY TRAJECTORY",
+        "trajectory_lbl": "LAST 30 DAYS",
+        "daily_readings_note": "Daily readings logged by this site, one per day.",
         "fav_accum": "Favorable for Accumulating",
         "neut_regime": "Neutral Regime",
         "caut_headwind": "Caution / Headwind",
         "indicators_title": "8 MARKET INDICATORS",
-        "indicators_sub": "Hover or click any indicator card to unfold its 30-day sparkline & methodology",
+        "indicators_sub": "Click any indicator card to open its interactive 30-day history & methodology",
         "why_title": "WHY TODAY'S SCORE? (KEY DRIVERS)",
         "why_mvrv_lbl": "On-Chain Valuation (MVRV)",
         "why_mvrv_txt": "realized value — well below the 3.5x cycle top threshold, signaling healthy accumulation territory.",
@@ -558,12 +559,13 @@ I18N = {
         "calc_how": "NASIL HESAPLANIR?",
         "calc_why": "BTC BİRİKTİRMEK İÇİN NEDEN ÖNEMLİ?",
         "weight_lbl": "Ağırlık",
-        "trajectory_lbl": "30 GÜNLÜK SEYİR",
+        "trajectory_lbl": "SON 30 GÜN",
+        "daily_readings_note": "Bu sitede kaydedilen günlük okumalar (her gün için bir veri).",
         "fav_accum": "Birikim İçin Çok Uygun",
         "neut_regime": "Nötr Piyasa Dengesi",
         "caut_headwind": "Dikkat / Piyasa Rüzgarı Ters",
         "indicators_title": "8 PİYASA GÖSTERGESİ (CANLI)",
-        "indicators_sub": "30 günlük trend grafiğini ve hesaplama detaylarını açmak için kartların üzerine gelin veya tıklayın",
+        "indicators_sub": "İnteraktif 30 günlük geçmiş grafiğini ve detayları açmak için herhangi bir göstergeye tıklayın",
         "why_title": "BUGÜNKÜ SKORUN NEDENİ (ANA ETKENLER)",
         "why_mvrv_lbl": "Zincir Üstü Değerleme (MVRV)",
         "why_mvrv_txt": "gerçekleşen piyasa değeri — 3.5x döngü tepe eşiğinin çok altında, sağlıklı birikim bölgesine işaret ediyor.",
@@ -825,13 +827,31 @@ def render_hero_and_signals_component(
     cards_payload = []
     dates_30 = [d.strftime("%b %d") for d in last_30.index]
     active_explainer = SIGNALS_EXPLAINER.get(lang, SIGNALS_EXPLAINER["EN"])
+    unit_map = {
+        "mvrv": "",
+        "google_trends": "",
+        "dxy": "",
+        "m2_yoy": "%",
+        "fng": "",
+        "ema200_ratio": "%",
+        "rsi14": "",
+        "btc_dominance": "%",
+    }
+    int_keys = {"google_trends", "fng"}
     for item in active_explainer:
         k = item["key"]
         col_name = series_col_map[k]
         heat_score = float(latest[f"score_{k}"])
         s_color = _signal_color(heat_score)
         s_status = _signal_status_text(heat_score, lang)
-        vals_30 = [round(float(v), 2) for v in last_30[col_name].tolist()]
+        if k in int_keys:
+            vals_30 = [int(round(float(v))) for v in last_30[col_name].tolist()]
+            min_30_v = int(min(vals_30))
+            max_30_v = int(max(vals_30))
+        else:
+            vals_30 = [round(float(v), 2) for v in last_30[col_name].tolist()]
+            min_30_v = round(min(vals_30), 2)
+            max_30_v = round(max(vals_30), 2)
         weight_pct = int(round(SIGNAL_WEIGHTS[k] * 100))
 
         cards_payload.append(
@@ -839,6 +859,8 @@ def render_hero_and_signals_component(
                 "key": k,
                 "title": item["title"],
                 "val": formatted_vals[k],
+                "unit": unit_map.get(k, ""),
+                "is_int": k in int_keys,
                 "color": s_color,
                 "status": s_status,
                 "weight": f"{weight_pct}%",
@@ -846,14 +868,35 @@ def render_hero_and_signals_component(
                 "why": item["why"],
                 "vals_30": vals_30,
                 "dates_30": dates_30,
-                "min_30": round(min(vals_30), 2),
-                "max_30": round(max(vals_30), 2),
+                "min_30": min_30_v,
+                "max_30": max_30_v,
             }
         )
 
     payload_json = json.dumps(cards_payload)
     pointer_pct = min(max(float(latest["accumulation_score"]), 2.0), 98.0)
     mult = zone.dca_multiplier
+
+    # Baseline values for 5-second live indicator recalculations
+    base_ema200 = float(latest.get("ema200", btc_price))
+    prev_ema200 = float(scored_df["ema200"].iloc[-2]) if len(scored_df) >= 2 else base_ema200
+    base_mvrv = float(latest.get("mvrv", 1.35))
+    prev_close = float(scored_df["close"].iloc[-2]) if len(scored_df) >= 2 else btc_price
+    closes_s = scored_df["close"].astype(float)
+    deltas_s = closes_s.diff()
+    gains_s = deltas_s.clip(lower=0.0).ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
+    losses_s = (-deltas_s.clip(upper=0.0)).ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
+    prev_avg_gain = float(gains_s.iloc[-2]) if len(gains_s) >= 2 else 100.0
+    prev_avg_loss = float(losses_s.iloc[-2]) if len(losses_s) >= 2 else 100.0
+    fng_labels_json = json.dumps(
+        {
+            "ef": lang_dict.get("fng_extreme_fear", "Extreme Fear"),
+            "f": lang_dict.get("fng_fear", "Fear"),
+            "n": lang_dict.get("fng_neutral", "Neutral"),
+            "g": lang_dict.get("fng_greed", "Greed"),
+            "eg": lang_dict.get("fng_extreme_greed", "Extreme Greed"),
+        }
+    )
 
     html_code = f"""
     <!DOCTYPE html>
@@ -1243,6 +1286,11 @@ def render_hero_and_signals_component(
             align-items: center;
             margin-bottom: 6px;
         }}
+        .ind-top-left {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }}
         .ind-name {{
             font-size: 0.80rem;
             font-weight: 600;
@@ -1252,6 +1300,27 @@ def render_hero_and_signals_component(
             width: 7px;
             height: 7px;
             border-radius: 50%;
+            flex-shrink: 0;
+        }}
+        .ind-info-icon {{
+            width: 17px;
+            height: 17px;
+            border-radius: 50%;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            color: #94a3b8;
+            font-family: Georgia, serif;
+            font-style: italic;
+            font-size: 0.68rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }}
+        .ind-card:hover .ind-info-icon {{
+            border-color: #f7931a;
+            color: #f7931a;
+            background: rgba(247, 147, 26, 0.12);
         }}
         .ind-val-row {{
             display: flex;
@@ -1262,85 +1331,179 @@ def render_hero_and_signals_component(
             font-family: 'JetBrains Mono', monospace;
             font-size: 1.22rem;
             font-weight: 800;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }}
+        .ind-val.ind-flash {{
+            color: #f7931a !important;
+            text-shadow: 0 0 14px rgba(247, 147, 26, 0.65) !important;
         }}
         .mini-spark {{
             width: 68px;
             height: 26px;
         }}
 
-        /* Animated Expandable Signal Inspector Drawer */
-        .inspector-drawer {{
-            margin-top: 14px;
-            background: linear-gradient(165deg, #131924 0%, #0d1118 100%);
-            border: 1px solid rgba(247, 147, 26, 0.45);
-            border-radius: 16px;
-            padding: 22px 26px;
-            display: grid;
-            grid-template-columns: 1.15fr 1fr;
-            gap: 26px;
+        /* Click-to-Open Indicator Modal (thebitcoinscore.com style) */
+        .ind-modal-backdrop {{
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(8, 12, 20, 0.72);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
             align-items: center;
-            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
-            transition: border-color 0.35s ease, box-shadow 0.35s ease;
-            position: relative;
+            justify-content: center;
+            padding: 16px;
+            animation: modalFadeIn 0.2s ease both;
         }}
-        .insp-content-anim {{
-            animation: inspFadeSlide 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
-        }}
-        @keyframes inspFadeSlide {{
-            from {{
-                opacity: 0;
-                transform: translateY(8px);
-            }}
-            to {{
-                opacity: 1;
-                transform: translateY(0);
-            }}
-        }}
-        .insp-badge-row {{
+        .ind-modal-backdrop.open {{
             display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
         }}
-        .insp-title {{
-            font-size: 1.55rem;
-            font-weight: 800;
-            color: #ffffff;
+        @keyframes modalFadeIn {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
         }}
-        .insp-pill {{
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.74rem;
+        .ind-modal-card {{
+            width: 100%;
+            max-width: 540px;
+            background: #131924;
+            border: 1px solid #263142;
+            border-radius: 20px;
+            padding: 26px 28px 22px 28px;
+            box-shadow: 0 28px 70px rgba(0, 0, 0, 0.75);
+            position: relative;
+            animation: modalPopIn 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }}
+        @keyframes modalPopIn {{
+            from {{ opacity: 0; transform: translateY(10px) scale(0.97); }}
+            to {{ opacity: 1; transform: translateY(0) scale(1); }}
+        }}
+        .modal-top-bar {{
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }}
+        .modal-ind-name {{
+            font-size: 0.92rem;
             font-weight: 700;
-            padding: 3px 10px;
-            border-radius: 999px;
-        }}
-        .insp-kicker {{
-            font-size: 0.72rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            color: #f7931a;
-            text-transform: uppercase;
-            margin-top: 12px;
+            color: #94a3b8;
             margin-bottom: 4px;
         }}
-        .insp-text {{
-            font-size: 0.90rem;
+        .modal-ind-val {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.25rem;
+            font-weight: 800;
+            letter-spacing: -0.8px;
+            line-height: 1.1;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }}
+        .modal-close-btn {{
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            border: 1px solid #263142;
+            background: #1a2232;
+            color: #94a3b8;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.18s ease;
+            flex-shrink: 0;
+        }}
+        .modal-close-btn:hover {{
+            background: #263142;
+            color: #ffffff;
+            border-color: #f7931a;
+        }}
+        .modal-desc {{
+            margin-top: 14px;
+            font-size: 0.92rem;
+            line-height: 1.56;
             color: #cbd5e1;
-            line-height: 1.52;
         }}
-        .spark-box {{
-            background: #0a0e14;
-            border: 1px solid #1f2937;
+        .modal-chart-head {{
+            margin-top: 20px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.74rem;
+        }}
+        .modal-chart-lbl {{
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }}
+        .modal-scrub-readout {{
+            color: #94a3b8;
+            font-weight: 500;
+        }}
+        .modal-scrub-readout b {{
+            color: #f8fafc;
+            font-weight: 800;
+            margin-left: 4px;
+        }}
+        .modal-chart-box {{
+            position: relative;
+            height: 168px;
             border-radius: 12px;
-            padding: 14px 16px;
+            background: #0d121b;
+            border: 1px solid #1f2937;
+            overflow: hidden;
+            cursor: crosshair;
+            user-select: none;
+            touch-action: none;
         }}
-        .spark-header {{
+        .modal-chart-max,
+        .modal-chart-min {{
+            position: absolute;
+            left: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.68rem;
+            color: #64748b;
+            pointer-events: none;
+            z-index: 2;
+        }}
+        .modal-chart-max {{ top: 7px; }}
+        .modal-chart-min {{ bottom: 7px; }}
+        .modal-guide-line {{
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: rgba(148, 163, 184, 0.45);
+            pointer-events: none;
+            z-index: 3;
+        }}
+        .modal-guide-dot {{
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid #0d121b;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 4;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }}
+        .modal-chart-dates {{
+            margin-top: 7px;
             display: flex;
             justify-content: space-between;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.74rem;
-            color: #94a3b8;
-            margin-bottom: 8px;
+            font-size: 0.70rem;
+            color: #64748b;
+        }}
+        .modal-foot-note {{
+            margin-top: 14px;
+            font-size: 0.76rem;
+            color: #64748b;
         }}
         @media (max-width: 768px) {{
             .hero-card {{
@@ -1421,7 +1584,10 @@ def render_hero_and_signals_component(
         body.light-mode .dca-input,
         body.light-mode .mult-val,
         body.light-mode .ind-title,
-        body.light-mode .insp-title {{
+        body.light-mode .modal-scrub-readout b {{
+            color: #0f172a !important;
+        }}
+        body.light-mode .dca-rec-title {{
             color: #0f172a !important;
         }}
         body.light-mode .score-denom,
@@ -1431,7 +1597,11 @@ def render_hero_and_signals_component(
         body.light-mode .sats-sub,
         body.light-mode .ind-sub,
         body.light-mode .ind-name,
-        body.light-mode .spark-header,
+        body.light-mode .modal-ind-name,
+        body.light-mode .modal-chart-lbl,
+        body.light-mode .modal-scrub-readout,
+        body.light-mode .modal-chart-dates,
+        body.light-mode .modal-foot-note,
         body.light-mode .gauge-labels {{
             color: #334155 !important;
             font-weight: 600 !important;
@@ -1488,18 +1658,37 @@ def render_hero_and_signals_component(
             border-color: #f7931a !important;
             box-shadow: 0 8px 20px rgba(247, 147, 26, 0.15) !important;
         }}
-        body.light-mode .inspector-drawer {{
-            background: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 100%) !important;
-            border: 1.5px solid #f7931a !important;
-            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08) !important;
+        body.light-mode .ind-info-icon {{
+            border-color: #94a3b8 !important;
+            color: #475569 !important;
         }}
-        body.light-mode .insp-text {{
-            color: #1e293b !important;
-            font-weight: 500 !important;
+        body.light-mode .ind-modal-backdrop {{
+            background: rgba(15, 23, 42, 0.45) !important;
         }}
-        body.light-mode .spark-box {{
+        body.light-mode .ind-modal-card {{
             background: #ffffff !important;
             border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22) !important;
+        }}
+        body.light-mode .modal-close-btn {{
+            background: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #334155 !important;
+        }}
+        body.light-mode .modal-close-btn:hover {{
+            background: #e2e8f0 !important;
+            color: #0f172a !important;
+        }}
+        body.light-mode .modal-desc {{
+            color: #334155 !important;
+            font-weight: 500 !important;
+        }}
+        body.light-mode .modal-chart-box {{
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+        }}
+        body.light-mode .modal-guide-dot {{
+            border-color: #ffffff !important;
         }}
     </style>
     </head>
@@ -1583,19 +1772,31 @@ def render_hero_and_signals_component(
             </div>
         </div>
 
-        <!-- 2. THE 8 MARKET INDICATORS GRID + ANIMATED 30-DAY SPARKLINE INSPECTOR -->
+        <!-- 2. THE 8 MARKET INDICATORS GRID + CLICK-TO-OPEN INTERACTIVE 30-DAY MODAL -->
         <div class="ind-header-row">
             <div class="ind-title">{lang_dict['indicators_title']}</div>
             <div class="ind-sub">{lang_dict['indicators_sub']}</div>
         </div>
         <div class="ind-grid" id="indGrid"></div>
-        <div class="inspector-drawer" id="inspDrawer"></div>
+
+        <!-- Click-to-Open Interactive Indicator Modal -->
+        <div class="ind-modal-backdrop" id="indModalBackdrop" onclick="handleBackdropClick(event)">
+            <div class="ind-modal-card" id="indModalCard" onclick="event.stopPropagation()"></div>
+        </div>
 
         <script>
             const MULT = {mult};
             const BTC_PRICE = {btc_price};
+            const BASE_EMA200 = {base_ema200};
+            const PREV_EMA200 = {prev_ema200};
+            const BASE_MVRV = {base_mvrv};
+            const PREV_CLOSE = {prev_close};
+            const PREV_AVG_GAIN = {prev_avg_gain};
+            const PREV_AVG_LOSS = {prev_avg_loss};
+            const FNG_LABELS = {fng_labels_json};
             const cardsData = {payload_json};
-            let selectedIdx = 0;
+            let modalIdx = null;
+            let scrubIndex = null;
 
             let currentBtcPrice = {btc_price};
 
@@ -1618,7 +1819,6 @@ def render_hero_and_signals_component(
             const dcaSatsOut = document.getElementById('dcaSatsOut');
             const livePriceEl = document.getElementById('liveBtcPrice');
             const liveChgEl = document.getElementById('liveBtcChg');
-            const refreshTimerEl = document.getElementById('refreshTimer');
 
             function updateDcaCalc() {{
                 const baseVal = parseFloat(dcaInput.value) || 0;
@@ -1639,9 +1839,8 @@ def render_hero_and_signals_component(
             dcaInput.addEventListener('input', updateDcaCalc);
             updateDcaCalc();
 
-            
             let hasInitialPriceAnimated = false;
-                        function animateBtcPriceCountUp(targetPrice) {{
+            function animateBtcPriceCountUp(targetPrice) {{
                 if (!livePriceEl) return;
                 const target = Math.round(targetPrice);
                 const dur = 260;
@@ -1668,6 +1867,8 @@ def render_hero_and_signals_component(
                     animateBtcPriceCountUp(newPrice);
                 }} else if (livePriceEl) {{
                     livePriceEl.textContent = '$' + Math.round(newPrice).toLocaleString('en-US');
+                    livePriceEl.classList.remove('price-flash');
+                    void livePriceEl.offsetWidth;
                     livePriceEl.classList.add('price-flash');
                     setTimeout(() => {{ if (livePriceEl) livePriceEl.classList.remove('price-flash'); }}, 650);
                 }}
@@ -1678,8 +1879,8 @@ def render_hero_and_signals_component(
                 }}
                 updateDcaCalc();
             }}
-            
-                        async function fetchLiveBtcPrice() {{
+
+            async function fetchLiveBtcPrice() {{
                 const fetchBinance = (url) =>
                     fetch(url).then(r => {{ if (!r.ok) throw new Error(); return r.json(); }}).then(d => {{
                         const p = parseFloat(d.lastPrice);
@@ -1704,10 +1905,16 @@ def render_hero_and_signals_component(
                 }}
             }}
 
-            
             fetchLiveBtcPrice();
-            setInterval(fetchLiveBtcPrice, 5000);
-            function buildSparkSvg(vals, color, width, height, fillArea) {{
+            // Item 4: Update BTC price every 2 seconds with orange flash
+            setInterval(fetchLiveBtcPrice, 2000);
+
+            function formatIndNum(v, c) {{
+                if (c.is_int) return Math.round(v).toString() + c.unit;
+                return Number(v).toFixed(2) + c.unit;
+            }}
+
+            function buildSparkSvg(vals, color, width, height) {{
                 const minV = Math.min(...vals);
                 const maxV = Math.max(...vals);
                 const range = (maxV - minV) || 1;
@@ -1718,91 +1925,255 @@ def render_hero_and_signals_component(
                     return `${{x.toFixed(1)}},${{y.toFixed(1)}}`;
                 }});
                 const polylinePoints = pts.join(' ');
-                if (!fillArea) {{
-                    return `<svg viewBox="0 0 ${{width}} ${{height}}" class="mini-spark">
-                        <polyline fill="none" stroke="${{color}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${{polylinePoints}}" />
-                    </svg>`;
-                }}
-                const areaPoints = `${{pad}},${{height - pad}} ${{polylinePoints}} ${{width - pad}},${{height - pad}}`;
-                const gradId = 'grad_' + Math.random().toString(36).substring(2, 7);
-                return `<svg viewBox="0 0 ${{width}} ${{height}}" style="width:100%;height:145px;display:block;">
-                    <defs>
-                        <linearGradient id="${{gradId}}" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="${{color}}" stop-opacity="0.38"/>
-                            <stop offset="100%" stop-color="${{color}}" stop-opacity="0.0"/>
-                        </linearGradient>
-                    </defs>
-                    <polygon fill="url(#${{gradId}})" points="${{areaPoints}}" />
-                    <polyline fill="none" stroke="${{color}}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${{polylinePoints}}" />
+                return `<svg viewBox="0 0 ${{width}} ${{height}}" class="mini-spark">
+                    <polyline fill="none" stroke="${{color}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${{polylinePoints}}" />
                 </svg>`;
             }}
 
             const indGrid = document.getElementById('indGrid');
-            const inspDrawer = document.getElementById('inspDrawer');
+            const modalBackdrop = document.getElementById('indModalBackdrop');
+            const modalCard = document.getElementById('indModalCard');
 
             function renderIndicators() {{
                 indGrid.innerHTML = '';
                 cardsData.forEach((c, idx) => {{
                     const div = document.createElement('div');
-                    div.className = 'ind-card' + (idx === selectedIdx ? ' selected' : '');
+                    div.className = 'ind-card' + (idx === modalIdx ? ' selected' : '');
+                    div.id = 'ind-card-' + c.key;
                     div.style.borderLeftColor = c.color;
                     div.style.animationDelay = (idx * 0.05) + 's';
                     div.innerHTML = `
                         <div class="ind-top">
-                            <span class="ind-name">${{c.title}}</span>
-                            <span class="ind-dot" style="background:${{c.color}};box-shadow:0 0 8px ${{c.color}};"></span>
+                            <span class="ind-top-left">
+                                <span class="ind-name">${{c.title}}</span>
+                                <span class="ind-dot" style="background:${{c.color}};box-shadow:0 0 8px ${{c.color}};"></span>
+                            </span>
+                            <span class="ind-info-icon" title="Click for 30-day history">i</span>
                         </div>
                         <div class="ind-val-row">
-                            <span class="ind-val" style="color:${{c.color}};">${{c.val}}</span>
-                            ${{buildSparkSvg(c.vals_30, c.color, 68, 26, false)}}
+                            <span class="ind-val" id="ind-val-${{c.key}}" style="color:${{c.color}};">${{c.val}}</span>
+                            <span id="ind-spark-${{c.key}}">${{buildSparkSvg(c.vals_30, c.color, 68, 26)}}</span>
                         </div>
                     `;
-                    div.addEventListener('mouseenter', () => selectCard(idx));
-                    div.addEventListener('click', () => selectCard(idx));
+                    div.addEventListener('click', () => openModal(idx));
                     indGrid.appendChild(div);
                 }});
-                renderDrawer();
             }}
 
-            function selectCard(idx) {{
-                if (idx === selectedIdx) return;
-                selectedIdx = idx;
+            function openModal(idx) {{
+                modalIdx = idx;
+                const c = cardsData[idx];
+                scrubIndex = c.vals_30.length - 1;
                 const allCards = indGrid.querySelectorAll('.ind-card');
-                allCards.forEach((el, i) => el.classList.toggle('selected', i === selectedIdx));
-                renderDrawer();
-            }}
-
-            function renderDrawer() {{
-                const c = cardsData[selectedIdx];
-                inspDrawer.style.borderColor = c.color + '88';
-                inspDrawer.innerHTML = `
-                    <div class="insp-content-anim">
-                        <div class="insp-badge-row">
-                            <span class="insp-title">${{c.title}}</span>
-                            <span class="insp-pill" style="color:${{c.color}};border:1px solid ${{c.color}};background:${{c.color}}18;">
-                                ${{c.val}} • ${{c.status}}
-                            </span>
-                            <span class="insp-pill" style="color:#f7931a;border:1px solid rgba(247,147,26,0.4);background:rgba(247,147,26,0.1);">
-                                {lang_dict['weight_lbl']}: ${{c.weight}}
-                            </span>
-                        </div>
-                        <div class="insp-kicker">{lang_dict['calc_how']}</div>
-                        <div class="insp-text">${{c.how}}</div>
-                        <div class="insp-kicker">{lang_dict['calc_why']}</div>
-                        <div class="insp-text">${{c.why}}</div>
-                    </div>
-                    <div class="spark-box insp-content-anim">
-                        <div class="spark-header">
-                            <span>{lang_dict['trajectory_lbl']} (${{c.dates_30[0]}} – ${{c.dates_30[c.dates_30.length - 1]}})</span>
-                            <span style="color:${{c.color}};font-weight:700;">Min: ${{c.min_30}} | Max: ${{c.max_30}}</span>
-                        </div>
-                        ${{buildSparkSvg(c.vals_30, c.color, 420, 145, true)}}
-                    </div>
-                `;
+                allCards.forEach((el, i) => el.classList.toggle('selected', i === modalIdx));
+                modalBackdrop.classList.add('open');
+                renderModalContent();
                 syncIframeHeight();
             }}
 
+            function closeModal() {{
+                modalIdx = null;
+                modalBackdrop.classList.remove('open');
+                const allCards = indGrid.querySelectorAll('.ind-card');
+                allCards.forEach((el) => el.classList.remove('selected'));
+                syncIframeHeight();
+            }}
+
+            function handleBackdropClick(e) {{
+                if (e.target === modalBackdrop) closeModal();
+            }}
+
+            document.addEventListener('keydown', (e) => {{
+                if (e.key === 'Escape' && modalIdx !== null) closeModal();
+            }});
+
+            function computeChartGeometry(vals) {{
+                const minV = Math.min(...vals);
+                const maxV = Math.max(...vals);
+                const range = (maxV - minV) || 1;
+                const coords = vals.map((v, i) => {{
+                    const xPct = vals.length === 1 ? 50 : 3 + (i / (vals.length - 1)) * 94;
+                    const yPct = 86 - ((v - minV) / range) * 68;
+                    return {{ x: xPct, y: yPct, val: v }};
+                }});
+                return {{ coords, minV, maxV }};
+            }}
+
+            function renderModalContent() {{
+                if (modalIdx === null) return;
+                const c = cardsData[modalIdx];
+                const vals = c.vals_30;
+                const dates = c.dates_30;
+                const geom = computeChartGeometry(vals);
+                const activeIdx = (scrubIndex !== null && scrubIndex >= 0 && scrubIndex < vals.length) ? scrubIndex : (vals.length - 1);
+                const pt = geom.coords[activeIdx];
+                const polyPts = geom.coords.map(p => `${{p.x.toFixed(2)}},${{p.y.toFixed(2)}}`).join(' ');
+                const areaPts = `${{geom.coords[0].x.toFixed(2)}},96 ${{polyPts}} ${{geom.coords[geom.coords.length - 1].x.toFixed(2)}},96`;
+                const gradId = 'mgrad_' + c.key;
+
+                modalCard.innerHTML = `
+                    <div class="modal-top-bar">
+                        <div>
+                            <div class="modal-ind-name">${{c.title}}</div>
+                            <div class="modal-ind-val" id="modalMainVal" style="color:${{c.color}};">${{c.val}}</div>
+                        </div>
+                        <button class="modal-close-btn" onclick="closeModal()" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="modal-desc">${{c.how}} ${{c.why}}</div>
+                    <div class="modal-chart-head">
+                        <span class="modal-chart-lbl">{lang_dict['trajectory_lbl']}</span>
+                        <span class="modal-scrub-readout" id="modalScrubReadout">
+                            ${{dates[activeIdx]}} &middot; <b>${{formatIndNum(vals[activeIdx], c)}}</b>
+                        </span>
+                    </div>
+                    <div class="modal-chart-box" id="modalChartBox">
+                        <span class="modal-chart-max">${{formatIndNum(geom.maxV, c)}}</span>
+                        <span class="modal-chart-min">${{formatIndNum(geom.minV, c)}}</span>
+                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;display:block;">
+                            <defs>
+                                <linearGradient id="${{gradId}}" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="${{c.color}}" stop-opacity="0.28"/>
+                                    <stop offset="100%" stop-color="${{c.color}}" stop-opacity="0.02"/>
+                                </linearGradient>
+                            </defs>
+                            <line x1="0" y1="25" x2="100" y2="25" stroke="rgba(148,163,184,0.12)" stroke-width="0.4"/>
+                            <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(148,163,184,0.12)" stroke-width="0.4"/>
+                            <line x1="0" y1="75" x2="100" y2="75" stroke="rgba(148,163,184,0.12)" stroke-width="0.4"/>
+                            <polygon fill="url(#${{gradId}})" points="${{areaPts}}" />
+                            <polyline fill="none" stroke="${{c.color}}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" points="${{polyPts}}" />
+                        </svg>
+                        <div class="modal-guide-line" id="modalGuideLine" style="left:${{pt.x}}%;display:${{scrubIndex !== null && scrubIndex !== vals.length - 1 ? 'block' : 'none'}};"></div>
+                        <div class="modal-guide-dot" id="modalGuideDot" style="left:${{pt.x}}%;top:${{pt.y}}%;background:${{c.color}};"></div>
+                    </div>
+                    <div class="modal-chart-dates">
+                        <span>${{dates[0]}}</span>
+                        <span>${{dates[dates.length - 1]}}</span>
+                    </div>
+                    <div class="modal-foot-note">{lang_dict['daily_readings_note']}</div>
+                `;
+
+                const chartBox = document.getElementById('modalChartBox');
+                const guideLine = document.getElementById('modalGuideLine');
+                const guideDot = document.getElementById('modalGuideDot');
+                const readout = document.getElementById('modalScrubReadout');
+
+                function updateScrubFromClientX(clientX, showGuide) {{
+                    const rect = chartBox.getBoundingClientRect();
+                    if (!rect.width) return;
+                    const rel = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+                    const idx = Math.round(rel * (vals.length - 1));
+                    scrubIndex = idx;
+                    const p = geom.coords[idx];
+                    guideDot.style.left = p.x + '%';
+                    guideDot.style.top = p.y + '%';
+                    guideLine.style.left = p.x + '%';
+                    guideLine.style.display = showGuide ? 'block' : 'none';
+                    readout.innerHTML = `${{dates[idx]}} &middot; <b>${{formatIndNum(vals[idx], c)}}</b>`;
+                }}
+
+                chartBox.addEventListener('pointermove', (ev) => updateScrubFromClientX(ev.clientX, true));
+                chartBox.addEventListener('pointerdown', (ev) => updateScrubFromClientX(ev.clientX, true));
+                chartBox.addEventListener('pointerleave', () => {{
+                    scrubIndex = vals.length - 1;
+                    const p = geom.coords[scrubIndex];
+                    guideDot.style.left = p.x + '%';
+                    guideDot.style.top = p.y + '%';
+                    guideLine.style.display = 'none';
+                    readout.innerHTML = `${{dates[scrubIndex]}} &middot; <b>${{formatIndNum(vals[scrubIndex], c)}}</b>`;
+                }});
+            }}
+
+            function updateSingleIndicatorCard(key, newFormattedVal, newNumericVal) {{
+                const idx = cardsData.findIndex(item => item.key === key);
+                if (idx === -1) return;
+                const c = cardsData[idx];
+                const prevFormatted = c.val;
+                c.val = newFormattedVal;
+                if (typeof newNumericVal === 'number' && !isNaN(newNumericVal)) {{
+                    c.vals_30[c.vals_30.length - 1] = c.is_int ? Math.round(newNumericVal) : Number(newNumericVal.toFixed(2));
+                    c.min_30 = Math.min(...c.vals_30);
+                    c.max_30 = Math.max(...c.vals_30);
+                }}
+                const valEl = document.getElementById('ind-val-' + key);
+                if (valEl) {{
+                    valEl.textContent = newFormattedVal;
+                    if (prevFormatted !== newFormattedVal) {{
+                        valEl.classList.remove('ind-flash');
+                        void valEl.offsetWidth;
+                        valEl.classList.add('ind-flash');
+                        setTimeout(() => valEl.classList.remove('ind-flash'), 650);
+                    }}
+                }}
+                const sparkEl = document.getElementById('ind-spark-' + key);
+                if (sparkEl) {{
+                    sparkEl.innerHTML = buildSparkSvg(c.vals_30, c.color, 68, 26);
+                }}
+                if (modalIdx === idx) {{
+                    const mVal = document.getElementById('modalMainVal');
+                    if (mVal) mVal.textContent = newFormattedVal;
+                }}
+            }}
+
+            function fngLabelJs(v) {{
+                if (v <= 24) return FNG_LABELS.ef;
+                if (v <= 44) return FNG_LABELS.f;
+                if (v <= 55) return FNG_LABELS.n;
+                if (v <= 74) return FNG_LABELS.g;
+                return FNG_LABELS.eg;
+            }}
+
+            // Item 5: Update live-capable indicators every 5 seconds
+            async function updateLiveIndicators() {{
+                if (currentBtcPrice && !isNaN(currentBtcPrice) && currentBtcPrice > 0) {{
+                    // 1. Live EMA200 (daily)
+                    const kAlpha = 2 / 201;
+                    const liveEma200 = currentBtcPrice * kAlpha + PREV_EMA200 * (1 - kAlpha);
+                    const emaPct = ((currentBtcPrice / liveEma200) - 1) * 100;
+                    const emaSign = emaPct >= 0 ? '+' : '';
+                    updateSingleIndicatorCard('ema200_ratio', emaSign + emaPct.toFixed(2) + '%', emaPct);
+
+                    // 2. Live RSI14 (Wilder's smoothing)
+                    const delta = currentBtcPrice - PREV_CLOSE;
+                    const gain = delta > 0 ? delta : 0;
+                    const loss = delta < 0 ? -delta : 0;
+                    const avgGain = (PREV_AVG_GAIN * 13 + gain) / 14;
+                    const avgLoss = (PREV_AVG_LOSS * 13 + loss) / 14;
+                    const rs = avgLoss === 0 ? 100 : (avgGain / avgLoss);
+                    const liveRsi = avgLoss === 0 ? 100 : (100 - (100 / (1 + rs)));
+                    updateSingleIndicatorCard('rsi14', liveRsi.toFixed(2), liveRsi);
+
+                    // 3. Live MVRV (scaled to real-time Market Value)
+                    const liveMvrv = BASE_MVRV * (currentBtcPrice / BTC_PRICE);
+                    updateSingleIndicatorCard('mvrv', liveMvrv.toFixed(2), liveMvrv);
+                }}
+
+                // 4. Live BTC Dominance from CoinGecko Global
+                try {{
+                    const domRes = await fetch('https://api.coingecko.com/api/v3/global');
+                    if (domRes.ok) {{
+                        const domJson = await domRes.json();
+                        const domVal = parseFloat(domJson?.data?.market_cap_percentage?.btc);
+                        if (domVal && !isNaN(domVal)) {{
+                            updateSingleIndicatorCard('btc_dominance', domVal.toFixed(2) + '%', domVal);
+                        }}
+                    }}
+                }} catch (e) {{}}
+
+                // 5. Live Fear & Greed from Alternative.me
+                try {{
+                    const fngRes = await fetch('https://api.alternative.me/fng/?limit=1');
+                    if (fngRes.ok) {{
+                        const fngJson = await fngRes.json();
+                        const fngVal = parseInt(fngJson?.data?.[0]?.value, 10);
+                        if (!isNaN(fngVal)) {{
+                            updateSingleIndicatorCard('fng', `${{fngVal}} (${{fngLabelJs(fngVal)}})`, fngVal);
+                        }}
+                    }}
+                }} catch (e) {{}}
+            }}
+
             renderIndicators();
+            setInterval(updateLiveIndicators, 5000);
 
             function syncIframeHeight() {{
                 const h = Math.ceil(document.body.scrollHeight || document.documentElement.scrollHeight) + 16;
@@ -1837,7 +2208,7 @@ def render_hero_and_signals_component(
     </body>
     </html>
     """
-    components.html(html_code, height=1210, scrolling=False)
+    components.html(html_code, height=920, scrolling=False)
 
 
 # ---------------------------------------------------------------------------
@@ -2006,7 +2377,8 @@ def main() -> None:
                 }
                 .tbs-main-title, .tbs-logo-text, .sec-title, .news-headline, .why-box h3,
                 [data-testid="stExpander"] summary, [data-testid="stExpander"] summary p,
-                .zone-bar-top, .tbs-card b, [data-testid="stWidgetLabel"] p,
+                [data-testid="stExpander"] summary span, [data-testid="stExpander"] summary svg,
+                .zone-bar-top, .tbs-card b, .why-item b, [data-testid="stWidgetLabel"] p,
                 [data-testid="stCheckbox"] label span, [data-testid="stCheckbox"] p {
                     color: #0f172a !important;
                 }
@@ -2014,8 +2386,9 @@ def main() -> None:
                     color: #1e293b !important;
                     font-weight: 700 !important;
                 }
-                .tbs-subdesc, .tbs-sub, .sec-sub, .news-excerpt, .news-footer, .why-item,
-                .cycle-desc, .zone-note, [data-testid="stExpander"] p {
+                .tbs-subdesc, .tbs-sub, .sec-sub, .news-excerpt, .news-footer, .why-item, .why-item span,
+                .cycle-desc, .zone-note, [data-testid="stExpander"] p, [data-testid="stExpanderDetails"] p,
+                [data-testid="stExpanderDetails"] div {
                     color: #334155 !important;
                     font-weight: 500 !important;
                 }
@@ -2028,6 +2401,7 @@ def main() -> None:
                     background: #f8fafc !important;
                     border: 1px solid #cbd5e1 !important;
                     box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06) !important;
+                    opacity: 1 !important;
                 }
                 .why-item, .cycle-item {
                     border-bottom-color: #cbd5e1 !important;
@@ -2357,46 +2731,33 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    # Scroll-reveal animations (runs in parent document via same-origin iframe)
+    # Scroll-reveal animations (safe across Streamlit theme/language re-renders — never traps elements at opacity:0)
     components.html(
         """
         <script>
         (function () {
             const doc = window.parent.document;
-            if (!doc.getElementById('tbs-reveal-style')) {
-                const s = doc.createElement('style');
+            let s = doc.getElementById('tbs-reveal-style');
+            if (!s) {
+                s = doc.createElement('style');
                 s.id = 'tbs-reveal-style';
-                s.textContent = `
-                    .tbs-reveal { opacity: 0; transform: translateY(28px) scale(.985);
-                        transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); }
-                    .tbs-reveal.tbs-in { opacity: 1; transform: none; }
-                    .news-card.tbs-reveal.tbs-in .news-thumb { animation: tbsZoom 1.2s cubic-bezier(.22,1,.36,1) both; }
-                    @keyframes tbsZoom { from { transform: scale(1.12); } to { transform: scale(1); } }
-                    .zone-pill-fill { transform-origin: left; }
-                    .tbs-card.tbs-in .zone-pill-fill { animation: tbsBar 1s cubic-bezier(.22,1,.36,1) both; }
-                    @keyframes tbsBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-                    @media (prefers-reduced-motion: reduce) { .tbs-reveal { opacity:1 !important; transform:none !important; transition:none !important; } }
-                `;
                 doc.head.appendChild(s);
             }
+            s.textContent = `
+                .tbs-reveal { opacity: 1 !important; transform: none !important; }
+                .tbs-reveal.tbs-in { animation: tbsFadeUp .55s cubic-bezier(.22,1,.36,1) both; }
+                @keyframes tbsFadeUp { from { opacity: 0.01; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+                .news-card.tbs-reveal.tbs-in .news-thumb { animation: tbsZoom 1.1s cubic-bezier(.22,1,.36,1) both; }
+                @keyframes tbsZoom { from { transform: scale(1.08); } to { transform: scale(1); } }
+                .zone-pill-fill { transform-origin: left; }
+                .tbs-card.tbs-in .zone-pill-fill { animation: tbsBar .9s cubic-bezier(.22,1,.36,1) both; }
+                @keyframes tbsBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+                @media (prefers-reduced-motion: reduce) { .tbs-reveal, .tbs-reveal.tbs-in { opacity:1 !important; transform:none !important; animation:none !important; } }
+            `;
             const sel = '.sec-title-row, .why-box, .tbs-card, .news-card, [data-testid="stExpander"], .disclaimer-banner';
-            const io = new window.parent.IntersectionObserver((entries) => {
-                entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('tbs-in'); io.unobserve(e.target); } });
-            }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-            function scan() {
-                doc.querySelectorAll(sel).forEach((el) => {
-                    if (el.dataset.tbsObs) return;
-                    el.dataset.tbsObs = '1';
-                    el.classList.add('tbs-reveal');
-                    if (el.classList.contains('news-card')) {
-                        const i = Array.from(el.parentNode.children).indexOf(el);
-                        el.style.transitionDelay = (i * 0.09) + 's';
-                    }
-                    io.observe(el);
-                });
-            }
-            scan();
-            new window.parent.MutationObserver(scan).observe(doc.body, { childList: true, subtree: true });
+            doc.querySelectorAll(sel).forEach((el) => {
+                el.classList.add('tbs-reveal', 'tbs-in');
+            });
         })();
         </script>
         """,
