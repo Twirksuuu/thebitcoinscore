@@ -763,8 +763,10 @@ def _signal_status_text(heat_sub_score: float, lang: str = "EN") -> str:
     return lbls.get("caut_headwind", "Caution / Headwind")
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_scored_data(start_date: str, fred_api_key: str, force_refresh: bool = False) -> pd.DataFrame:
+@st.cache_data(ttl=900, show_spinner=False)
+def load_scored_data(
+    start_date: str, fred_api_key: str, force_refresh: bool = False, day_bucket: str = ""
+) -> pd.DataFrame:
     cache_file = os.path.join(os.path.dirname(__file__), "btc_score_cache.csv")
     raw_df = build_master_dataset(
         start_date=start_date,
@@ -2446,7 +2448,8 @@ def main() -> None:
 
     L = I18N[lang]
 
-    scored_df = load_scored_data(start_date="2018-02-01", fred_api_key="")
+    day_bucket = pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d-%H")
+    scored_df = load_scored_data(start_date="2018-02-01", fred_api_key="", day_bucket=day_bucket)
     latest = scored_df.iloc[-1]
 
     with col_brand:

@@ -518,6 +518,64 @@ def fetch_reference_snapshot() -> Optional[dict]:
         return None
 
 
+def _apply_reference_snapshot(df: pd.DataFrame, ref_snap: Optional[dict]) -> pd.DataFrame:
+    """Overlays the 30-day indicator snapshot and extends index up to today UTC."""
+    if not ref_snap or "indicators" not in ref_snap or "historyDates" not in ref_snap:
+        return df
+
+    import re as _re
+
+    df = df.copy()
+    hist_dates = [pd.Timestamp(d).tz_localize(None).normalize() for d in ref_snap["historyDates"]]
+    today_dt = pd.Timestamp(datetime.now(timezone.utc).date())
+    target_max_dt = max([df.index.max(), today_dt] + hist_dates)
+
+    if target_max_dt > df.index.max():
+        full_idx = pd.date_range(df.index.min(), target_max_dt, freq="1D")
+        df = df.reindex(full_idx).ffill()
+        price_usd = ref_snap.get("price", {}).get("usd") if isinstance(ref_snap.get("price"), dict) else None
+        if price_usd is not None:
+            try:
+                df.loc[today_dt, "close"] = float(price_usd)
+                df["rsi14"] = compute_wilder_rsi(df["close"], length=14)
+                df["ema200"] = compute_ema(df["close"], length=200)
+                df["ema200_ratio"] = df["close"] / df["ema200"]
+            except Exception as exc:
+                logger.debug("Technicals recompute on snapshot extension skipped: %s", exc)
+
+    id_to_col = {
+        "mvrv": "mvrv",
+        "dxy": "dxy",
+        "trends": "google_trends",
+        "fear_greed": "fng",
+        "liquidity": "m2_yoy",
+        "dominance": "btc_dominance",
+    }
+    latest_dt = df.index.max()
+    for ind in ref_snap["indicators"]:
+        col = id_to_col.get(ind.get("id"))
+        if not col or col not in df.columns:
+            continue
+        hist_vals = ind.get("history", [])
+        if len(hist_vals) == len(hist_dates):
+            for dt_item, val_item in zip(hist_dates, hist_vals):
+                if dt_item in df.index and val_item is not None:
+                    df.loc[dt_item, col] = float(val_item)
+        disp_str = str(ind.get("display", ""))
+        m_num = _re.search(r"[-+]?\d+(?:\.\d+)?", disp_str)
+        if m_num:
+            val_num = float(m_num.group(0))
+            if pd.notna(latest_dt):
+                df.loc[latest_dt, col] = val_num
+            if today_dt in df.index:
+                df.loc[today_dt, col] = val_num
+
+    if "google_trends" in df.columns:
+        df["google_trends"] = df["google_trends"].round().clip(0.0, 100.0)
+    df.index.name = "date"
+    return df
+
+
 # ---------------------------------------------------------------------------
 # MASTER AGGREGATOR: BUILD UNIFIED DAILY DATASET
 # ---------------------------------------------------------------------------
@@ -572,31 +630,7 @@ def _fetch_and_save_master_dataset(
                     master[col] = master[col].combine_first(prev_cache[col])
 
         # Overlay 30-day verified indicator history & latest display values from reference snapshot
-        if ref_snap and "indicators" in ref_snap and "historyDates" in ref_snap:
-            hist_dates = [pd.Timestamp(d).tz_localize(None).normalize() for d in ref_snap["historyDates"]]
-            today_dt = master.index.max()
-            id_to_col = {
-                "mvrv": "mvrv",
-                "dxy": "dxy",
-                "trends": "google_trends",
-                "fear_greed": "fng",
-                "liquidity": "m2_yoy",
-                "dominance": "btc_dominance",
-            }
-            import re as _re
-            for ind in ref_snap["indicators"]:
-                col = id_to_col.get(ind.get("id"))
-                if not col or col not in master.columns:
-                    continue
-                hist_vals = ind.get("history", [])
-                if len(hist_vals) == len(hist_dates):
-                    for dt_item, val_item in zip(hist_dates, hist_vals):
-                        if dt_item in master.index and val_item is not None:
-                            master.loc[dt_item, col] = float(val_item)
-                disp_str = str(ind.get("display", ""))
-                m_num = _re.search(r"[-+]?\d+(?:\.\d+)?", disp_str)
-                if m_num and pd.notna(today_dt):
-                    master.loc[today_dt, col] = float(m_num.group(0))
+        master = _apply_reference_snapshot(master, ref_snap)
 
         if master["mvrv"].isna().all():
             sma_1400 = master["close"].rolling(1400, min_periods=200).mean()
@@ -651,39 +685,18 @@ def build_master_dataset(
                     "google_trends" in cached_df.columns
                     and ((cached_df["google_trends"].iloc[-30:] % 1 != 0).any() or cached_df["google_trends"].iloc[-30:].min() < 5)
                 )
-                if has_bad_trends:
-                    ref_snap = fetch_reference_snapshot()
-                    if ref_snap and "indicators" in ref_snap and "historyDates" in ref_snap:
-                        hist_dates = [pd.Timestamp(d).tz_localize(None).normalize() for d in ref_snap["historyDates"]]
-                        today_dt = cached_df.index.max()
-                        id_to_col = {
-                            "mvrv": "mvrv",
-                            "dxy": "dxy",
-                            "trends": "google_trends",
-                            "fear_greed": "fng",
-                            "liquidity": "m2_yoy",
-                            "dominance": "btc_dominance",
-                        }
-                        import re as _re
-                        for ind in ref_snap["indicators"]:
-                            col = id_to_col.get(ind.get("id"))
-                            if not col or col not in cached_df.columns:
-                                continue
-                            hist_vals = ind.get("history", [])
-                            if len(hist_vals) == len(hist_dates):
-                                for dt_item, val_item in zip(hist_dates, hist_vals):
-                                    if dt_item in cached_df.index and val_item is not None:
-                                        cached_df.loc[dt_item, col] = float(val_item)
-                            disp_str = str(ind.get("display", ""))
-                            m_num = _re.search(r"[-+]?\d+(?:\.\d+)?", disp_str)
-                            if m_num and pd.notna(today_dt):
-                                cached_df.loc[today_dt, col] = float(m_num.group(0))
-                        cached_df["google_trends"] = cached_df["google_trends"].round().clip(0.0, 100.0)
-                        cached_df.to_csv(cache_path)
-
                 mtime = datetime.fromtimestamp(os.path.getmtime(cache_path), tz=timezone.utc)
                 is_old = (datetime.now(timezone.utc) - mtime >= timedelta(hours=cache_ttl_hours))
-                is_stale_day = cached_df.index.max().date() < (today_utc - timedelta(days=1))
+                is_stale_day = cached_df.index.max().date() < today_utc
+
+                if has_bad_trends or is_stale_day or is_old:
+                    ref_snap = fetch_reference_snapshot()
+                    if ref_snap:
+                        cached_df = _apply_reference_snapshot(cached_df, ref_snap)
+                        tmp_path = f"{cache_path}.tmp"
+                        cached_df.to_csv(tmp_path)
+                        os.replace(tmp_path, cache_path)
+
                 if (is_old or is_stale_day) and not _REFRESH_IN_PROGRESS:
                     logger.info("Returning cached dataset immediately; refreshing in background...")
                     threading.Thread(
